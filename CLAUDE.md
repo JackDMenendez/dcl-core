@@ -89,20 +89,33 @@ The framework series uses `dcl_core` in three different ways:
   (`dcl-generator-zoo`).**  Pure symbolic / sympy work; no
   dependency on the engine.  Not affected by dcl_core at all.
 - **Paper~III (`dcl-paper-03-tidal-ionization`).**  The first
-  downstream candidate.  Currently the empty `src/core/` of
-  Paper~III is the placeholder for the engine.  Once dcl_core
-  v0.1.0 lands, Paper~III has two choices:
-    (a) port `src/experiments/exp_18_tidal_ionization.py` from
-        Paper~I's continuous-amplitude API to dcl_core's integer-
-        token API (a substantial rewrite -- the `tick_twobody`
-        loop is the load-bearing part to translate);
-    (b) keep vendoring Paper~I's old engine as a self-contained
-        copy under Paper~III's `src/core/`, and migrate later (or
-        never).
-  Recommend (b) for Paper~III's v0.1 baseline -- the analytical
-  $M_\text{min}(d)$ work and the observational predictions are
-  independent of which engine version runs `exp_18`.  Migration
-  to dcl_core becomes the natural Paper~III v0.2 release.
+  downstream consumer.  Resolved (2026-05-16): Paper~III pins
+  `dcl_core` via
+  `dcl_core @ git+https://github.com/JackDMenendez/dcl-core@<TAG>`
+  in its `virtual-env-requirements.txt`.  Its `src/experiments/exp_18_tidal_ionization.py`
+  imports from `dcl_core.core` directly; no vendored copy.
+
+**Bump-and-rebuild rule (READ THIS BEFORE EVERY DCL-CORE RELEASE).**
+
+Every `dcl-core` release triggers a *bump-and-rebuild* workflow in
+every downstream paper repo that pins `dcl_core`.  After tagging
+and pushing a `dcl-core` release, walk each downstream consumer
+listed above and **bump its pin from `@main` (or the previous
+`@vX.Y.Z`) to the new tag** before the consumer's next release.
+
+The detailed procedure -- including the co-released order
+(dcl-core deposit FIRST, then paper-side pin bump, then paper
+deposit) -- lives in two places:
+
+- `release_notes/README.md` here in dcl-core (see *Downstream
+  paper coordination* section).
+- Each consumer paper's own `release_notes/README.md`
+  (Paper~III's includes a *Pre-release: bump pinned dcl_core* section).
+
+Do not skip the bump.  Do not reverse the order.  A downstream
+paper that ships pinned to `@main` is non-reproducible by
+construction; the bump is what restores its reproducibility
+guarantee.
 
 Update this block whenever the answer to "what is the next action"
 changes.
