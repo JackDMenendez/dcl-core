@@ -1,0 +1,333 @@
+<!-- markdownlint-disable MD022 MD025 MD033 MD060 -->
+# CLAUDE.md -- Working Brief for Claude Code
+
+> Project: `dcl_core` -- Core library for the A=1 Discrete Causal
+> Lattice framework (a research-software package).
+
+This file is the project memory for Claude Code. Keep it updated so a
+new conversation can continue work without the full chat history.
+
+The structure below is a starting point: replace the placeholder
+sections with project-specific content as the work develops, and keep
+the **CURRENT STATUS** block at the top up to date.
+
+---
+
+## CURRENT STATUS (2026-05-16) -- v0.1.0-dev (template freshly customised)
+
+Repository created on 2026-05-16 from the user's `dcl-core-template`
+(a Python-package-shaped GitHub template, separate from the
+`dcl-paper-experiment-template` used for the papers in the series).
+The template lays out a substantively NEW design relative to
+Paper~I's `src/core/`: **integer-token probability accounting**
+(`N_units` integer counts vs Paper~I's continuous-amplitude
+`psi_R`/`psi_L`), a Bresenham-style residual accumulator for
+fractional-bit carry between ticks, a CPU/GPU backend split, and a
+semver-enforced public-API surface.
+
+All implementations in `src/dcl_core/` are deliberate stubs --
+every method raises `NotImplementedError`, and only `test_smoke.py`
+runs as-is.  This state is the template's design intent: the
+architectural decisions (interfaces, public API, naming,
+documentation conventions, CI matrix) are deliberately separated
+from the implementation work, which is the next phase.
+
+**Next concrete actions, in dependency order:**
+
+1. Implement `BipartiteLattice` (geometry only -- frozen
+   dataclass, no state).  Paper~I's geometric conventions
+   (RGB/CMY basis vectors $(1,1,1)/(1,-1,-1)/(-1,1,-1)$, the
+   parity-by-tick rule) lift directly; this is the one piece of
+   Paper~I's `src/core/` that transfers without rethinking.
+2. Implement `DiscreteCausalSession` with integer-token state
+   (`N_R`, `N_L` as `int64` arrays; `phi_R`, `phi_L` as
+   `float64`).  This IS the new design point relative to Paper~I;
+   the integer formulation is what makes A=1 an exact equality
+   rather than a float-tolerance check.
+3. Implement `BresenhamResidual` (the fractional-bit accumulator
+   that carries fractional updates from the analytical hop into
+   subsequent ticks without rounding loss).  See planned
+   `docs/design/02_remainder_strategy.md`.
+4. Implement `HopOperator.step` (bipartite Dirac evolution).
+   `notes/structure_factor_derivation.md` (planned) will document
+   the structure-factor expansion that supports
+   `HopOperator.fourier_kernel`.
+5. Implement `TickScheduler` (multi-session orchestration; for
+   v0.1.0, single-session execution is enough -- multi-session
+   pairwise interactions can defer).
+6. Concurrent with 1-5: fill in the test stubs in `tests/`.
+   `test_smoke.py` already runs; `test_conservation.py`,
+   `test_hop.py`, `test_remainder.py`, `test_continuum_limit.py`,
+   `test_clifford.py` (and a future `test_gauge_invariance.py`)
+   land in lockstep with each module's implementation.
+7. Once steps 1-6 are landed, deposit v0.1.0 on Zenodo for a
+   citeable DOI.  Downstream papers can then pin
+   `dcl_core==0.1.0` via `pip install`.
+
+**What is NOT in scope for v0.1.0:**
+
+- GPU backend (CuPy).  Stub the `backends/gpu/` interface but
+  defer the CUDA implementation to v0.2.0.
+- Multi-session entanglement / pairwise emission rules from
+  Paper~I's `TickScheduler`.  v0.1.0 ships the scheduler
+  skeleton, not the full emission machinery.
+- A full port of Paper~I's `exp_*.py` experiments.  Paper~I and
+  Paper~II are unaffected by dcl_core's release (they remain
+  self-contained with their own vendored / inline implementations).
+  Paper~III (the first downstream consumer) and its migration are
+  a separate decision -- see *Downstream papers* below.
+
+**Downstream papers (migration outlook).**
+
+The framework series uses `dcl_core` in three different ways:
+
+- **Paper~I (`dcl`).**  Vendored copy of the original
+  continuous-amplitude engine in its own `src/core/`.  Stays
+  pinned at Paper~I's v1.0 release; not migrated.  Paper~I's
+  Zenodo deposit is immutable.
+- **Paper~II (`dcl-sm-derivation`) and the generator zoo
+  (`dcl-generator-zoo`).**  Pure symbolic / sympy work; no
+  dependency on the engine.  Not affected by dcl_core at all.
+- **Paper~III (`dcl-paper-03-tidal-ionization`).**  The first
+  downstream candidate.  Currently the empty `src/core/` of
+  Paper~III is the placeholder for the engine.  Once dcl_core
+  v0.1.0 lands, Paper~III has two choices:
+    (a) port `src/experiments/exp_18_tidal_ionization.py` from
+        Paper~I's continuous-amplitude API to dcl_core's integer-
+        token API (a substantial rewrite -- the `tick_twobody`
+        loop is the load-bearing part to translate);
+    (b) keep vendoring Paper~I's old engine as a self-contained
+        copy under Paper~III's `src/core/`, and migrate later (or
+        never).
+  Recommend (b) for Paper~III's v0.1 baseline -- the analytical
+  $M_\text{min}(d)$ work and the observational predictions are
+  independent of which engine version runs `exp_18`.  Migration
+  to dcl_core becomes the natural Paper~III v0.2 release.
+
+Update this block whenever the answer to "what is the next action"
+changes.
+
+---
+
+## What This Project Is
+
+`dcl_core` is a Python implementation of the A=1 Discrete Causal
+Lattice framework with **integer-token probability accounting**.  A
+session is a fixed budget of $N$ indistinguishable probability
+tokens distributed over a bipartite octahedral lattice; A=1 means
+$\sum_x N(x) = N$ exactly, by integer arithmetic.  The library
+exposes lattice geometry (`BipartiteLattice`), the hop operator
+(`HopOperator` -- bipartite Dirac evolution), the residual
+accumulator (`BresenhamResidual` -- fractional-bit carry between
+ticks), and the tick scheduler (`TickScheduler` -- multi-session
+orchestration).  CPU (NumPy) and GPU (CuPy) backends are
+addressable through a single API surface; the backend is selected
+at lattice-construction time.
+
+Papers in the A=1 Discrete Causal Lattice series that depend on
+this core pin to a specific Zenodo-deposited version (e.g.\
+`dcl_core==0.1.0` in `pyproject.toml` or
+`virtual-env-requirements.txt`).  The core can evolve at its own
+cadence; each paper's reproducibility is anchored to a specific
+software release, not a moving target.
+
+The relationship to Paper~I: Paper~I's `src/core/` is the
+*original* (continuous-amplitude, float-tolerance A=1)
+implementation.  `dcl_core` is a *re-implementation* with integer
+tokens, separating the analytical hop step
+(`HopOperator.step`, fractional output) from the integer-token
+update (`BresenhamResidual`, the fractional-bit carry).  The
+intent is that the continuum limit ($N \to \infty$) recovers
+Paper~I's dynamics exactly while making A=1 a hard integer
+identity at finite $N$.
+
+---
+
+## Package Layout
+
+Two submodules, both installable via `pip install dcl_core`.  The
+top-level `dcl_core/__init__.py` re-exports only `__version__` and
+the submodules themselves; **no top-level shortcuts**, so the
+choice of engine is explicit at every import site.
+
+### `dcl_core.core` -- continuous-amplitude engine (Paper~I port)
+
+| Module | Role |
+|---|---|
+| `src/dcl_core/core/OctahedralLattice.py` | Bipartite lattice geometry + constants (`RGB_VECTORS` etc.) |
+| `src/dcl_core/core/CausalSession.py` | Continuous (`psi_R`, `psi_L`) state |
+| `src/dcl_core/core/CompositeCausalSession.py` | Multi-session composite |
+| `src/dcl_core/core/TickScheduler.py` | Tick orchestration + `ShuffleScheme` |
+| `src/dcl_core/core/PhaseOscillator.py` | Phase-clock primitive |
+| `src/dcl_core/core/UnityConstraint.py` | Float-tolerance A=1 enforcement |
+
+Verbatim port of Paper~I's `src/core/`; the six module files are
+unmodified, only `core/__init__.py` is new (re-exports the Paper~I
+public surface).  Ready to use immediately.
+
+### `dcl_core.core3d` -- integer-token engine (new design)
+
+| Module | Role |
+|---|---|
+| `src/dcl_core/core3d/lattice.py` | `BipartiteLattice` (frozen dataclass) |
+| `src/dcl_core/core3d/session.py` | `DiscreteCausalSession` (integer tokens + phase) |
+| `src/dcl_core/core3d/hop.py` | `HopOperator` (bipartite Dirac, analytical output) |
+| `src/dcl_core/core3d/remainder.py` | `BresenhamResidual` (fractional-bit carry) |
+| `src/dcl_core/core3d/scheduler.py` | `TickScheduler` (multi-session) |
+| `src/dcl_core/core3d/backends/` | CPU / GPU implementations |
+
+All operators raise `NotImplementedError` at v0.1.0-dev; see
+`CURRENT STATUS` for the implementation roadmap.
+
+Public API per submodule is whatever its `__init__.py` re-exports;
+anything not re-exported is internal and may change without a
+semver bump.  Cross-validation between the two submodules lives in
+`tests/test_cross_validation.py` (STUB).
+
+---
+
+## Conventions
+
+- **Versioning.** Semver. Public API changes (re-exports from
+  `__init__.py`) require a **minor** bump (backwards-compatible
+  additions) or **major** bump (breaking changes). Internal
+  refactoring is **patch**. Pre-1.0 majors signal "API still
+  unstable, expect breakage."
+- **File naming.** Modules: `<topic>.py` (lowercase, single noun).
+  Tests: `tests/test_<topic>.py`. Experiments:
+  `experiments/exp_NN_<short_name>.{py,md}`. Docs:
+  `docs/<category>/<topic>.md`.
+- **Documentation convention for code.** Every non-trivial line of
+  physics / framework code should say what it **is** in the theory,
+  not just what it does in the program. Name the mathematical object
+  (e.g. `gamma_0`, `delta_phi`, `N_units`), cite the paper section /
+  equation where one exists, and use "IS" for exact correspondences,
+  "approximates" for continuum limits.
+- **Test discipline.** Every conservation law and continuum-limit
+  claim gets a `tests/test_*.py` entry. Integer-A=1 tests assert
+  equality with no float tolerance. Tests for the continuum limit
+  parametrize over N or lattice spacing and check convergence.
+- **API stability.** Any change to a symbol re-exported from
+  `src/dcl_core/__init__.py` must be deliberate: either a semver bump
+  or a deprecation cycle. The `.claude/agents/api-stability-reviewer.md`
+  agent enforces this on diffs.
+- **Naming review.** The `.claude/agents/physics-naming-reviewer.md`
+  agent flags variables named after their operational role rather
+  than the mathematical object they represent.
+
+---
+
+## Test invariants (what the suite protects)
+
+These tests should exist and run on every commit. Add to this list as
+new invariants are formalised.
+
+- `test_conservation.py` -- `sum(N(x))` exact integer equality across
+  N ticks.
+- `test_hop.py` -- hop operator preserves expected symmetries
+  (lattice rotations, bipartite parity).
+- `test_remainder.py` -- Bresenham accumulator carries fractional
+  bits correctly; long-run drift bounded by epsilon_P.
+- `test_continuum_limit.py` -- as `N -> infinity` and lattice spacing
+  `a -> 0`, dispersion converges to `E^2 = m^2 + |p|^2`.
+- `test_clifford.py` -- `{gamma_mu, gamma_nu} = 2 eta_{munu} I`
+  (sympy verification of the Clifford algebra).
+- `test_gauge_invariance.py` -- Peierls-coupled hop is invariant
+  under `A_mu -> A_mu + d_mu Lambda`.
+
+---
+
+## Release flow
+
+See `release_notes/README.md` for the full procedure. Summary:
+
+1. CI green on `main`.
+2. Bump `src/dcl_core/_version.py` and `CITATION.cff`
+   (`version`, `date-released`).
+3. Draft `release_notes/vX.Y.md` and `release_notes/vX.Y-release-message.md`.
+4. **Deposit on Zenodo first** -- the DOI lands in `CITATION.cff`
+   *before* the release commit.
+5. Commit version bump (DOI included).
+6. Tag `vX.Y`, push the tag.
+7. Create the GitHub Release using the release-message body.
+8. (Optional) Publish to PyPI.
+
+Downstream paper repos pin to the released version
+(`dcl_core==X.Y.Z` in their requirements). Once released, a version
+is **immutable** -- never amend a tagged commit.
+
+---
+
+## What NOT to Change
+
+- The bipartite RGB / CMY sublattice geometry: it IS the Dirac
+  structure.
+- The A=1 constraint (whatever its current implementation -- integer
+  tokens or continuous amplitude with renormalisation): keep, just
+  understand which mode you are in.
+- The math-analog naming convention: this is the discipline that
+  keeps the code legible to future readers (humans and Claude).
+- Public API symbols without a deprecation cycle.
+
+---
+
+## Cross-references to the A=1 series repositories
+
+The series is decomposed across several repos.  For local
+Claude / agent work, expose them as Windows directory junctions
+under `external/`.  All `external/` paths are gitignored, so the
+junctions are not part of the committed repo.
+
+- **`external/dcl`** $\to$ `C:\dev\dcl` -- Paper~I's repo.
+  Vendored copy of the original (continuous-amplitude) engine
+  lives at `external/dcl/src/core/`.  Useful for cross-checking
+  `dcl_core`'s integer-token implementation against the reference
+  dynamics, and for lifting Paper~I's geometric conventions
+  (lattice basis vectors, parity rule) directly into
+  `BipartiteLattice`.
+- **`external/dcl-sm-derivation`** $\to$ `C:\dev\dcl-sm-derivation`
+  -- Paper~II.  Pure sympy / symbolic; no engine dependency.
+- **`external/dcl-generator-zoo`** $\to$ `C:\dev\dcl-zoo` --
+  the generator zoo (catalogue of the 71-dim per-site
+  automorphism algebra).  Pure sympy; no engine dependency.
+- **`external/dcl-paper-03-tidal-ionization`** $\to$
+  `C:\dev\<path>` -- Paper~III, the first candidate downstream
+  consumer of `dcl_core` (see *Downstream papers* above).
+- **`external/research`** $\to$ `C:\dev\physics-research` --
+  parallel formalisation effort (notation, algebra, topology,
+  balanced $\mathcal{A}=1$ equations).  Findings during dcl_core
+  work that touch notation should flow upstream to
+  `external/research/Notes/`.
+
+To (re)create on Windows:
+
+```bat
+mkdir external
+mklink /J external\dcl C:\dev\dcl
+mklink /J external\dcl-sm-derivation C:\dev\dcl-sm-derivation
+mklink /J external\dcl-generator-zoo C:\dev\dcl-zoo
+mklink /J external\dcl-paper-03-tidal-ionization C:\dev\<paper-3-path>
+mklink /J external\research C:\dev\physics-research
+```
+
+---
+
+## Notes Index (important theoretical / scratchpad files)
+
+`notes/README.md` -- conventions for notes/
+
+Notes expected to land during v0.1.0 development:
+
+- `notes/structure_factor_derivation.md` (planned) -- the
+  Fourier-space hop kernel that supports
+  `HopOperator.fourier_kernel`.  Documents the small-$k$ Taylor
+  expansion and the continuum-limit identification
+  $\mathrm{hop} \to i \mathbf{k} \cdot \boldsymbol{\gamma}_{RGB}$.
+- `notes/bresenham_residual_design.md` (planned, optional --
+  may live in `docs/design/` instead) -- the fractional-bit-carry
+  algorithm; how the analytical hop's continuous output is rounded
+  to integer-token updates without long-run drift.
+
+(List individual notes here as they accumulate.  Notes are
+durable working documents; release-notes refer back to them for
+context.)

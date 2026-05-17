@@ -1,0 +1,11 @@
+# Subject (imperative, <= 72 chars): summarise what changes.
+
+# WHY: what problem prompted this change?
+
+# WHAT: bullet list of the substantive changes (only if non-obvious from diff).
+
+# CONSEQUENCES: anything future-you needs to know -- invariants broken,
+# API surface changed (semver impact), new dependencies, calibration
+# changes, performance notes.
+
+# Refs / version: e.g., v0.1-DRAFT, exp_XX, issue #N, semver impact.

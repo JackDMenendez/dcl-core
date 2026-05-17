@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "dcl_core: Core library for the A=1 Discrete Causal Lattice framework"
+abstract: "Python implementation of the A=1 Discrete Causal Lattice framework with integer-token probability accounting.  A session is a fixed budget of N indistinguishable probability tokens distributed over a bipartite octahedral lattice; A=1 means sum_x N(x) = N exactly, by integer arithmetic.  The library exposes lattice geometry, the hop operator (bipartite Dirac evolution), the Bresenham-style residual accumulator (fractional-bit carry), and the tick scheduler (multi-session orchestration), with CPU (NumPy) and GPU (CuPy) backends.  Papers in the A=1 Discrete Causal Lattice series depending on this core pin to a specific Zenodo-deposited version."
+authors:
+  - family-names: Menendez
+    given-names: Jack
+    orcid: "https://orcid.org/0009-0003-1166-307X"
+    affiliation: "Independent Scholar (Eugene, OR)"
+version: v0.1.0-dev
+date-released: 2026-05-16
+# At release time, fill in the Zenodo DOI assigned for this version:
+# doi: 10.5281/zenodo.XXXXXXXX
+repository-code: "https://github.com/JackDMenendez/dcl-core"
+license: MIT
+keywords:
+  - A=1 Discrete Causal Lattice
+  - bipartite octahedral lattice
+  - integer-token probability accounting
+  - Bresenham residual
+  - discrete Dirac
+  - hop operator
+  - research software
+  - lattice physics
+references:
+  - type: article
+    title: "Geometry First: Quantum Mechanics, Gravity, and the Origin of the Standard Model from a Single Conservation Law"
+    authors:
+      - family-names: Menendez
+        given-names: Jack
+    doi: 10.5281/zenodo.20078529
+    year: 2026
+    notes: "Paper I of the A=1 Discrete Causal Lattice series.  Original (continuous-amplitude) implementation of the framework that dcl_core re-implements with integer-token probability accounting; downstream papers in the series will pin specific Zenodo-deposited versions of dcl_core."

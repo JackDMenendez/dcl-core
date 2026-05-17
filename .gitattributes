@@ -1,0 +1,41 @@
+# Default to automatic line-ending normalisation.
+* text=auto
+
+# Always-text files (LF in the repo, native on checkout).
+*.md text
+*.txt text
+*.py text
+*.pyi text
+*.sh text
+*.cmd text
+*.toml text
+*.cfg text
+*.ini text
+*.json text
+*.yml text
+*.yaml text
+*.cff text
+
+# Always-CRLF on checkout.
+*.sln text eol=crlf
+
+# Truly binary -- never normalise.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.mov binary
+*.mp4 binary
+*.gz binary
+*.zip binary
+*.7z binary
+*.ttf binary
+*.eot binary
+*.woff binary
+*.woff2 binary
+*.pyc binary
+*.pdf binary
+*.npy binary
+*.npz binary
+*.whl binary
