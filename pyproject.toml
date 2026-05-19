@@ -8,7 +8,7 @@ description = "Core library for the A=1 Discrete Causal Lattice framework"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
-    { name = "Jack Menendez", email = "jackdmenendez@gmail.com" },
+    { name = "Jack Menendez", email = "jack@geometryinducedphysics.org" },
 ]
 requires-python = ">=3.11"
 keywords = ["physics", "lattice", "discrete-causal-lattice", "research-software"]
@@ -55,7 +55,7 @@ docs = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/JackDMenendez/dcl-core"
+Homepage = "https://geometryinducedphysics.org/"
 Repository = "https://github.com/JackDMenendez/dcl-core"
 Issues = "https://github.com/JackDMenendez/dcl-core/issues"
 Documentation = "https://github.com/JackDMenendez/dcl-core/tree/main/docs"
