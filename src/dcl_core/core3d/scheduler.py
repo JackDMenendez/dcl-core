@@ -29,11 +29,20 @@ See:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Callable
+
+import numpy as np
 
 from .hop import HopOperator
 from .lattice import BipartiteLattice, TickParity
 from .remainder import BresenhamResidual
 from .session import DiscreteCausalSession
+
+# Type alias for the post-tick callback.  Receives the scheduler so the
+# callback can introspect `tick` (count of completed ticks), `parity_now()`,
+# `sessions`, and `residuals` -- whatever it needs without us having to
+# pre-decide the argument list.
+TickCallback = Callable[["TickScheduler"], None]
 
 
 @dataclass
@@ -51,6 +60,16 @@ class TickScheduler:
         Registered sessions. Order matters for pairwise-interaction
         determinism.
 
+    on_tick_complete : callable, optional
+        Hook fired at the end of every :meth:`step` call, after the
+        tick counter has been incremented.  Signature is
+        ``on_tick_complete(scheduler) -> None``; the callback can
+        introspect ``scheduler.tick`` (now the count of completed
+        ticks), ``scheduler.parity_now()`` (the parity of the NEXT
+        tick), ``scheduler.sessions`` and ``scheduler.residuals``.
+        Intended for instrumentation, per-tick observable extraction,
+        or live plotting -- the engine itself does no I/O.
+
     Attributes
     ----------
     tick : int
@@ -64,6 +83,7 @@ class TickScheduler:
     sessions: list[DiscreteCausalSession] = field(default_factory=list)
     tick: int = 0
     residuals: dict[int, BresenhamResidual] = field(default_factory=dict)
+    on_tick_complete: TickCallback | None = None
 
     def parity_now(self) -> TickParity:
         """Return the active sublattice parity for the current tick."""
@@ -74,10 +94,21 @@ class TickScheduler:
 
         The returned index is stable for the lifetime of the session
         and is used to address its residual in `self.residuals`.
+
+        Validates that ``session.lattice`` is the same object as the
+        scheduler's lattice (identity check, not just shape match) --
+        mixing lattices is not supported, and silently allowing it
+        would surface as a confusing shape mismatch in the hop.
         """
-        raise NotImplementedError(
-            "TickScheduler.register: append session, allocate matching BresenhamResidual"
-        )
+        if session.lattice is not self.lattice:
+            raise ValueError(
+                "session.lattice must be the same object as the scheduler's "
+                "lattice; mixing lattices is not supported"
+            )
+        idx = len(self.sessions)
+        self.sessions.append(session)
+        self.residuals[idx] = BresenhamResidual(lattice=self.lattice)
+        return idx
 
     def step(self) -> None:
         """Advance every registered session by one tick.
@@ -87,12 +118,74 @@ class TickScheduler:
           - Each session's `(N_R, N_L, phi_R, phi_L)` reflect one tick
             of bipartite Dirac evolution.
           - Each session's `assert_unity()` would pass (A=1 holds).
-          - Pairwise interactions registered for this tick have fired.
+          - Pairwise interactions registered for this tick have fired
+            (none in v0.1.0 -- sessions evolve independently).
+
+        Pairwise / multi-session interactions (Coulomb, gauge phase,
+        emission pair) are deferred to v0.2.0; v0.1.0 ships the
+        scheduler skeleton in which every registered session is
+        advanced independently.  The hook for those interactions is
+        between the hop and the quantisation step (so they see the
+        analytical psi_new but write before integer counts are
+        committed).
         """
-        raise NotImplementedError(
-            "TickScheduler.step: see docstring algorithm; implement once "
-            "HopOperator and BresenhamResidual are concrete."
-        )
+        parity = self.parity_now()
+        for idx, session in enumerate(self.sessions):
+            # 1.  Hop -> analytical complex amplitudes (snapshot; no mutation).
+            psi_R_new, psi_L_new = self.hop.step(session, parity)
+
+            # 2.  Renormalise `psi_new` to unit norm before the
+            # integer quantisation.  The half-step hop formula in
+            # `HopOperator.step` is NOT natively unitary -- only one
+            # chirality moves per tick, so `sum(|psi|^2)` can drift
+            # by O(0.3) per tick.  Paper~I handles this via its
+            # `UnityConstraint.enforce_unity_spinor`; the integer
+            # engine adopts the same fix at this boundary so the
+            # residual's rebalance only absorbs O(eps) float
+            # roundoff rather than O(n_units) non-unitarity (which
+            # would overflow the lattice when the deficit exceeds
+            # the site count).  A natively-unitary hop is a v0.2.0
+            # design knob; for now this float-renorm preserves
+            # Paper~I-equivalent dynamics so the discrete-vs-continuous
+            # comparison in Paper III is clean.
+            norm_sq = float(
+                np.sum(np.abs(psi_R_new) ** 2)
+                + np.sum(np.abs(psi_L_new) ** 2)
+            )
+            if norm_sq > 0.0:
+                inv_norm = 1.0 / np.sqrt(norm_sq)
+                psi_R_new = psi_R_new * inv_norm
+                psi_L_new = psi_L_new * inv_norm
+
+            # Fractional token targets sum to ~`n_units` (modulo eps).
+            N_target_R = np.abs(psi_R_new) ** 2 * session.n_units
+            N_target_L = np.abs(psi_L_new) ** 2 * session.n_units
+
+            # 3.  Integer quantisation.
+            residual = self.residuals[idx]
+            N_R_int, N_L_int = residual.quantise(
+                N_target_R, N_target_L, session.n_units
+            )
+
+            # 4.  (pairwise interactions go here; v0.2.0+).
+
+            # 5.  Write back.  Phases are the analytical hop's angles;
+            # the integer N supplies the amplitude.
+            session.N_R[...] = N_R_int
+            session.N_L[...] = N_L_int
+            session.phi_R[...] = np.angle(psi_R_new)
+            session.phi_L[...] = np.angle(psi_L_new)
+
+            # 6.  Cheap sanity check.  This should never fire if
+            # `quantise` is correct.
+            session.assert_unity()
+
+        self.tick += 1
+
+        # 7.  Instrumentation hook.  Fires once per `step` (not once per
+        # session), after the tick counter has advanced.
+        if self.on_tick_complete is not None:
+            self.on_tick_complete(self)
 
     def run(self, n_ticks: int) -> None:
         """Convenience wrapper: call `step()` `n_ticks` times.

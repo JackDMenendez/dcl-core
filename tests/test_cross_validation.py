@@ -69,3 +69,33 @@ def test_conservation_invariants_agree() -> None:
     ``len(lattice) * eps``.
     """
     ...
+
+
+@pytest.mark.skip(reason="cross-validation pending core3d implementation + coupling machinery")
+def test_arnold_tongue_locations_agree() -> None:
+    """Coupled-session frequency-locking tongues sit in the same places.
+
+    Set up two coupled sessions (or one session + a periodic external
+    potential) at intrinsic frequency ``omega_A`` and driver
+    ``omega_B``.  Sweep ``(omega_B / omega_A, coupling_strength K)``
+    in 2D and identify the rational-ratio plateaus where the
+    sessions phase-lock -- the Arnold tongues.
+
+    For the framework's continuum-limit claim to hold, the tongue
+    locations (rational ratios) and widths must agree between
+    ``core`` (continuous baseline) and ``core3d`` (integer-token)
+    at sufficiently large ``n_units``.  This is a sharp test:
+    tongues are a *structural* feature of the dynamics, not a
+    local quantity, so shifts or width changes would expose any
+    silent break in the integer-token formulation -- including
+    phase-information loss in :class:`BresenhamResidual`'s carry
+    (see ``notes/bresenham_residual_design.md`` for why a real
+    carry might shift tongues that a complex carry would preserve).
+
+    This test is part of Paper III's discrete-vs-continuous
+    comparison; the scan logic likely lives downstream in
+    ``external/dcl-paper-03-tidal-ionization`` and this entry runs
+    a minimal smoke version against a fixed (omega_A, omega_B, K)
+    grid corner.
+    """
+    ...

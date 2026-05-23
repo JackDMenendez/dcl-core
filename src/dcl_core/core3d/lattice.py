@@ -22,6 +22,8 @@ from typing import Literal
 
 import numpy as np
 
+from .backends import get_backend
+
 # Sublattice basis vectors. These IS the framework's chirality structure.
 # Do not reorder, do not renormalise -- downstream code identifies sublattice
 # by sign of the first nonzero component.
@@ -78,9 +80,9 @@ class BipartiteLattice:
         Site (x, y, z) is on RGB iff (x + y + z) is even. This IS the
         Z_2 grading that becomes gamma_5 in the continuum limit.
         """
-        raise NotImplementedError(
-            "BipartiteLattice.parity_field: implement in terms of the chosen backend"
-        )
+        backend = get_backend(self.backend)
+        coords = backend.indices(self.shape)
+        return coords.sum(axis=0) % 2
 
     def neighbour_offsets(self, parity: TickParity) -> tuple[tuple[int, int, int], ...]:
         """Return the basis vectors used for hopping at the given tick parity.

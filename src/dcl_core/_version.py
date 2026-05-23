@@ -16,4 +16,4 @@ Pre-1.0 releases (0.X.Y) signal "API still unstable" -- minor bumps
 may break callers.
 """
 
-__version__ = "0.1.0-dev"
+__version__ = "0.1.0"

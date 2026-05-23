@@ -8,10 +8,9 @@ authors:
     given-names: Jack
     orcid: "https://orcid.org/0009-0003-1166-307X"
     affiliation: "Independent Scholar (Eugene, OR)"
-version: v0.1.0-dev
-date-released: 2026-05-16
-# At release time, fill in the Zenodo DOI assigned for this version:
-# doi: 10.5281/zenodo.XXXXXXXX
+version: v0.1.0
+date-released: 2026-05-22
+doi: 10.5281/zenodo.20350952
 repository-code: "https://github.com/JackDMenendez/dcl-core"
 license: MIT
 keywords:
@@ -32,3 +31,11 @@ references:
     doi: 10.5281/zenodo.20078529
     year: 2026
     notes: "Paper I of the A=1 Discrete Causal Lattice series.  Original (continuous-amplitude) implementation of the framework that dcl_core re-implements with integer-token probability accounting; downstream papers in the series will pin specific Zenodo-deposited versions of dcl_core."
+  - type: article
+    title: "Geometry Forces Physics: A Lie-Algebra Derivation of the Standard Model Gauge Group from a Single Conservation Law"
+    authors:
+      - family-names: Menendez
+        given-names: Jack
+    doi: 10.5281/zenodo.20292158
+    year: 2026
+    notes: "Paper II of the A=1 Discrete Causal Lattice series.  Establishes the 71-dimensional per-site automorphism algebra and identifies 20 generators with Standard-Model degrees of freedom; the remaining 51 are the open structure that motivates the complex-carry hypothesis for dcl_core's BresenhamResidual (see notes/bresenham_residual_design.md)."

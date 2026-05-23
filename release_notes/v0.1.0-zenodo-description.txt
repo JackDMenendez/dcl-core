@@ -1,0 +1,170 @@
+dcl_core is a Python library implementing the A=1 Discrete Causal
+Lattice (DCL) framework, the substrate underlying the "Geometry First"
+research series.  v0.1.0 is the first citable release; the package
+ships two engines under a single import, intentionally side-by-side,
+so downstream research can compare them directly.
+
+The first engine, dcl_core.core, is a verbatim port of the
+continuous-amplitude formulation from Paper I (Menendez, 2026,
+Zenodo: 10.5281/zenodo.20078529).  Sessions carry complex Dirac
+spinor amplitudes (psi_R on the RGB sublattice, psi_L on CMY),
+evolve under a bipartite tick rule, and enforce A=1 through a
+post-hop float-tolerance renormalisation.  This engine reproduces
+Paper I's dynamics bit-for-bit and serves as the continuous-baseline
+reference.
+
+The second engine, dcl_core.core3d, is the active design point: an
+integer-token reimplementation that enforces A=1 as an exact integer
+identity.  A session is a fixed budget of N indistinguishable
+probability tokens distributed across an octahedral lattice
+(N_R(x), N_L(x) as int64 fields, phi_R(x), phi_L(x) as continuous
+phases); the analytical Dirac hop produces fractional new amplitudes
+which the BresenhamResidual operator converts to integer counts via
+a floor + global top-up rebalance, persisting fractional bits
+between ticks.  The result is sum_x (N_R(x) + N_L(x)) == n_units at
+every tick, with no float tolerance.
+
+The motivation for shipping both engines in one package is
+methodological: the next paper in the series (Paper III, on tidal
+ionisation) is structured around a direct discrete-vs-continuous
+probability comparison, including minimum-momentum-uncertainty
+(min-delta-p) experiments and Arnold-tongue frequency-locking
+scans.  Having both engines accessible from the same import line,
+running on the same lattice geometry, makes that comparison clean.
+
+The public API for v0.1.0 covers:
+  - BipartiteLattice  -- frozen geometry, RGB/CMY basis vectors,
+                         parity field;
+  - DiscreteCausalSession  -- integer-token state with three
+                              construction factories (delta_at,
+                              wavepacket for min-delta-p Gaussians,
+                              from_arrays for arbitrary initial
+                              states);
+  - BresenhamResidual  -- the error-diffusion quantiser;
+  - HopOperator  -- bipartite Dirac evolution, plus a
+                    fourier_kernel for analytical work;
+  - TickScheduler  -- per-tick orchestration with an
+                      on_tick_complete callback for instrumentation;
+  - dcl_core.core3d.clifford  -- opt-in sympy module exposing the
+                                 4x4 Dirac gamma matrices and the
+                                 Minkowski metric (mostly-minus
+                                 convention).
+
+Two benchmark experiments are bundled:
+  - experiments/exp_01_throughput.py  -- tick-throughput sweep
+                                         across lattice shapes
+                                         8^3 to 256^3, emits
+                                         structured .npy + JSON
+                                         sidecar for hardware
+                                         baselines;
+  - experiments/exp_02_phase_profile.py  -- cProfile breakdown of
+                                            one tick at fixed shape.
+
+The supporting tooling in tools/diff_baselines.py compares two
+throughput baselines (e.g., before and after a hardware upgrade)
+and prints a per-shape speedup table.
+
+What is deliberately NOT in v0.1.0 (deferred to v0.2.0+):
+  - GPU backend kernels.  The CuPy allocators are wired, but the
+    RawKernel bodies in backends/gpu.py are stubs.
+  - Pairwise multi-session interactions (Coulomb, gauge phase,
+    emission pairs).  The scheduler runs registered sessions
+    independently; coupling between them is a follow-up.
+  - Complex BresenhamResidual carry.  v0.1.0 ships a real-valued
+    carry as a known-incomplete placeholder.  The hypothesis that
+    the carry should be complex (representing virtual-particle
+    amplitude tied to the 51 unaccounted-for generators in Paper
+    II's per-site automorphism algebra) is documented in
+    notes/bresenham_residual_design.md; the determination is
+    expected to live downstream in Paper III's min-delta-p
+    experiments.
+
+Tests at release: 228 passed, 4 skipped (cross-validation, awaiting
+Paper III), 26 xfailed (pre-existing Paper I drift inherited with
+the port).
+
+Install:
+    pip install "git+https://github.com/JackDMenendez/dcl-core@v0.1.0"
+
+Or, for symbolic verification (Clifford algebra) or GPU backend:
+    pip install "dcl_core[sympy] @ git+https://github.com/JackDMenendez/dcl-core@v0.1.0"
+    pip install "dcl_core[gpu]   @ git+https://github.com/JackDMenendez/dcl-core@v0.1.0"
+
+License: MIT (source), CC BY 4.0 (documentation).
+
+Citation: see CITATION.cff in the repository.  This release's DOI is
+10.5281/zenodo.20350952.  Downstream papers in the A=1 DCL series
+that depend on dcl_core pin to this DOI for reproducibility.
+
+Repository: https://github.com/JackDMenendez/dcl-core
+Project homepage: https://geometryinducedphysics.org/
+
+Related identifiers:
+  Paper I  -- 10.5281/zenodo.20078529  ("is supplement to")
+  Paper II -- 10.5281/zenodo.20292158  ("references")
+
+
+References
+----------
+
+[1] Menendez, J. (2026).  Geometry First: Quantum Mechanics,
+    Gravity, and the Origin of the Standard Model from a Single
+    Conservation Law.  Zenodo.  doi:10.5281/zenodo.20078529.
+    (Paper I of the A=1 Discrete Causal Lattice series; the
+    continuous-amplitude formulation that dcl_core.core ports
+    verbatim and dcl_core.core3d re-derives with integer tokens.)
+
+[2] Menendez, J. (2026).  Geometry Forces Physics: A Lie-Algebra
+    Derivation of the Standard Model Gauge Group from a Single
+    Conservation Law.  Zenodo.  doi:10.5281/zenodo.20292158.
+    (Paper II of the A=1 Discrete Causal Lattice series.
+    Establishes the 71-dimensional per-site automorphism algebra
+    and identifies 20 generators with Standard-Model degrees of
+    freedom; the remaining 51 are the open structure referenced
+    in dcl_core's complex-carry hypothesis for BresenhamResidual,
+    see notes/bresenham_residual_design.md.)
+
+[3] Bresenham, J. E. (1965).  Algorithm for computer control of a
+    digital plotter.  IBM Systems Journal, 4(1), 25-30.
+    doi:10.1147/sj.41.0025.
+    (Namesake of BresenhamResidual.  The error-diffusion
+    accumulator pattern that converts fractional pixel positions
+    to integer pixel grids is adapted here to convert fractional
+    token-amplitude targets into integer token counts while
+    preserving the total exactly.)
+
+[4] Arnold, V. I. (1989).  Mathematical Methods of Classical
+    Mechanics (2nd ed.).  Graduate Texts in Mathematics 60,
+    Springer-Verlag.  doi:10.1007/978-1-4757-2063-1.
+    (Source for the Arnold-tongue phenomenon used as one of the
+    cross-engine comparison observables planned for Paper III's
+    discrete-vs-continuous probability study.)
+
+[5] Harris, C. R., Millman, K. J., van der Walt, S. J., et al.
+    (2020).  Array programming with NumPy.  Nature, 585, 357-362.
+    doi:10.1038/s41586-020-2649-2.
+    (Primary array library; both engines run on NumPy by default.)
+
+[6] Virtanen, P., Gommers, R., Oliphant, T. E., et al. (2020).
+    SciPy 1.0: fundamental algorithms for scientific computing in
+    Python.  Nature Methods, 17, 261-272.
+    doi:10.1038/s41592-019-0686-3.
+    (Required scientific-computing dependency.)
+
+[7] Meurer, A., Smith, C. P., Paprocki, M., et al. (2017).  SymPy:
+    symbolic computing in Python.  PeerJ Computer Science, 3:e103.
+    doi:10.7717/peerj-cs.103.
+    (Optional dependency; the dcl_core.core3d.clifford submodule
+    builds the Dirac gamma matrices symbolically with SymPy so
+    the Clifford anticommutation relations can be checked as
+    exact algebraic equalities rather than numerical
+    approximations.)
+
+[8] Okuta, R., Unno, Y., Nishino, D., Hido, S., & Loomis, C.
+    (2017).  CuPy: a NumPy-compatible library for NVIDIA GPU
+    calculations.  Proceedings of Workshop on Machine Learning
+    Systems (LearningSys) at NeurIPS 2017.
+    https://learningsys.org/nips17/assets/papers/paper_16.pdf.
+    (Optional [gpu] dependency; the GPU backend in
+    dcl_core.core3d.backends.gpu uses CuPy allocators.  Kernel
+    bodies are stubbed in v0.1.0 and scheduled for v0.2.0.)

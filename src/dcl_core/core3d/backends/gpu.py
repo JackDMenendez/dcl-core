@@ -48,6 +48,16 @@ def zeros_int(shape: tuple[int, ...]):  # type: ignore[no-untyped-def]
     return cp.zeros(shape, dtype=cp.int64)
 
 
+def indices(shape: tuple[int, ...]):  # type: ignore[no-untyped-def]
+    """Coordinate grid of `shape`; CuPy analogue of `numpy.indices`.
+
+    Returns an int64 CuPy array of shape `(len(shape), *shape)` whose
+    `axis=0` slices are the per-axis coordinate fields.
+    """
+    _require_cupy()
+    return cp.indices(shape, dtype=cp.int64)
+
+
 def shift(array, offset: tuple[int, int, int]):  # type: ignore[no-untyped-def]
     """Periodic shift on the GPU via `cupy.roll`.
 
@@ -64,6 +74,36 @@ def sum_all(array):  # type: ignore[no-untyped-def]
     """Return the scalar sum (CuPy scalar; cast on the host as needed)."""
     _require_cupy()
     return array.sum()
+
+
+def floor(array):  # type: ignore[no-untyped-def]
+    """Element-wise floor via `cupy.floor`."""
+    _require_cupy()
+    return cp.floor(array)
+
+
+def sqrt(array):  # type: ignore[no-untyped-def]
+    """Element-wise square root via `cupy.sqrt`."""
+    _require_cupy()
+    return cp.sqrt(array)
+
+
+def exp(array):  # type: ignore[no-untyped-def]
+    """Element-wise complex exponential via `cupy.exp`."""
+    _require_cupy()
+    return cp.exp(array)
+
+
+def cos(array):  # type: ignore[no-untyped-def]
+    """Element-wise cosine via `cupy.cos`."""
+    _require_cupy()
+    return cp.cos(array)
+
+
+def sin(array):  # type: ignore[no-untyped-def]
+    """Element-wise sine via `cupy.sin`."""
+    _require_cupy()
+    return cp.sin(array)
 
 
 # ---------------------------------------------------------------------------
