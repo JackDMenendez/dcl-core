@@ -1,103 +1,100 @@
 # release_notes/
 
-One folder per released version, two files per release:
+One folder per released version of `dcl_core`, with these artefacts
+per release:
 
-- `vX.Y.md` -- the **change log**. Long-form, internal: what changed,
-  why, what's deferred, dependency / API changes, performance notes.
-- `vX.Y-release-message.md` -- the **GitHub Release body**. The
-  outward-facing version: headline change, API delta, what's out of
-  scope. Posted as the body of the GitHub Release alongside the tag.
+- `vX.Y.md` -- **change log** for the release.  Long-form, internal:
+  what changed, why, what's deferred, dependency / API changes,
+  performance notes.
+- `vX.Y-release-message.md` -- **GitHub Release body**.  The
+  outward-facing version: headline change, API delta, what's out
+  of scope.  Posted as the body of the GitHub Release alongside
+  the tag.
+- `vX.Y-zenodo-description.txt` -- text pasted into Zenodo's
+  **Description** field at deposit time.  Plain text; format
+  modelled on
+  `C:\dev\dcl-sm-derivation\release_notes\zenodo_description.txt`.
+- `zenodo_references.txt` -- text pasted into Zenodo's
+  **References** field (bibliographic citations, one per line).
+  Durable: reuse and edit each release.
+- `zenodo_related_works.txt` -- entries for Zenodo's
+  **Related / alternate identifiers** section (Relation,
+  Identifier, Scheme, Resource Type per row).  Durable: reuse
+  and edit each release.
 
 Templates:
 
 - `TEMPLATE.md` for the change log
 - `TEMPLATE-release-message.md` for the Release body
 
-## Release flow
+## Release flow (v2 -- 2026-05-26)
 
-Pre-conditions: final commits landed on `main`; CI green across all
-the matrix (Linux/macOS/Windows x Python 3.11/3.12).
+This protocol applies uniformly to every subproject in the
+A=1 Discrete Causal Lattice series (dcl-core, dcl-delta-p-min,
+dcl-paper-03, future ones).  Each step is owned by either
+**Claude** (the agent running inside this repo) or **User**;
+do not skip an owner-marked step.  Steps marked **conditional**
+apply only if the named artefact exists in this repo
+(e.g. step 8 only if `paper/main.tex` is present -- dcl-core has
+no paper, so steps 8 and 14 are skipped here).
 
-1. **Final tests + sanity check.**  Run the full local test suite
-   (`pytest tests -v`) and confirm the GitHub Actions CI is green
-   on the head of `main`.  Open `tests/test_cross_validation.py`
-   and confirm any newly-flipped (skipped -> active) tests pass at
-   the current state of `dcl_core.core3d` implementations.
+| # | Step | Owner |
+|---|---|---|
+| 1 | CI green on `main`. | Claude |
+| 2 | Bump `src/dcl_core/_version.py` and `CITATION.cff` (`version`, `date-released`). | Claude |
+| 3 | Draft `release_notes/vX.Y.md` and `release_notes/vX.Y-release-message.md`. | Claude |
+| 4 | Draft `release_notes/vX.Y-zenodo-description.txt` (model: `dcl-sm-derivation/release_notes/zenodo_description.txt`). | Claude |
+| 5 | Draft or update `release_notes/zenodo_references.txt`. | Claude |
+| 6 | Draft or update `release_notes/zenodo_related_works.txt`. | Claude |
+| 7 | Run unit tests (`pytest tests -v`); CI matrix on `main` must also be green. | Claude |
+| 8 | **Conditional (`paper/main.tex` exists -- N/A for dcl-core):** | |
+| 8a |   Add version to title in `main.tex`. | Claude |
+| 8b |   Review abstract, introduction, conclusion, `References.bib`; make necessary changes. | Claude |
+| 8c |   Build `main.tex` to `build/`. | Claude |
+| 8d |   Review PDF in `build/`. | User |
+| 9 | Run `export-vscode-extensions.{cmd,sh}` -> tracked `extensions.txt` at repo root. | Claude |
+| 10 | Run `generate-dockerfile.{cmd,sh}` -> tracked `Dockerfile`. | Claude |
+| 11 | Reserve a Zenodo DOI (Zenodo "New upload" -> *Reserve DOI*) and supply the DOI string to Claude. | User |
+| 12 | DOI lands in `release_notes/vX.Y.md`. | Claude |
+| 13 | DOI lands in `CITATION.cff` (`doi:` field). | Claude |
+| 14 | **Conditional (`paper/main.tex` exists -- N/A for dcl-core):** | |
+| 14a |   DOI lands in `main.tex` (`\thanks{}` block). | Claude |
+| 14b |   Rebuild PDF. | Claude |
+| 14c |   Final document check. | User |
+| 14d |   Rename PDF to `stage/<doc-title>-vX.Y.pdf` (durable per-version snapshot). | User |
+| 14e |   Upload the snapshotted PDF to Zenodo. | User |
+| 15 | Upload software files (wheel, sdist, lattice data, etc.) to Zenodo. | User |
+| 16 | Commit generated files + version bump (DOI included). | Claude |
+| 17 | Tag `vX.Y` and push the tag.  (Tags are immutable once pushed; Claude must surface what it is about to do before running this.) | Claude |
+| 18 | Create the GitHub Release draft using the `vX.Y-release-message.md` body. | User |
+| 19 | (Optional) Publish to PyPI -- **skip by default**; opt-in only when explicitly requested. | User |
+| 20 | Publish the GitHub Release (click *Publish* in the GitHub UI). | User |
+| 21 | Supply Claude with the project-plan delta needed for the release. | User |
+| 22 | Update project plan with release info. | Claude |
+| 23 | Update GitHub project board. | User |
 
-2. **[User] Reserve a Zenodo DOI.**  In the Zenodo "New upload"
-   form, click *Reserve DOI* to mint a DOI without publishing the
-   deposit yet.  Copy the DOI string (form
-   `10.5281/zenodo.NNNNNNNN`).  The deposit stays in *Draft* status
-   until step 6.
+After step 23, walk downstream consumers per the *Downstream paper
+coordination* section below.
 
-3. **Insert the DOI and bump version metadata.**  Update in one
-   commit-able pass:
+## Helper scripts required by steps 9 and 10
 
-   - `src/dcl_core/_version.py`: bump `__version__ = "X.Y.Z"`.
-   - `CITATION.cff`: bump `version:` and `date-released:`, fill
-     in `doi: 10.5281/zenodo.NNNNNNNN`.
-   - `release_notes/vX.Y.md` and
-     `release_notes/vX.Y-release-message.md`: fill in the DOI
-     in the header blocks.
+The two helper scripts referenced by steps 9 and 10 **do not yet
+exist** in this repo (or in any other DCL subproject as of
+2026-05-26).  Each release that runs this protocol is blocked at
+those steps until the scripts are created.
 
-4. **Build the distribution artefacts.**
+- `export-vscode-extensions.cmd` / `.sh` should produce
+  `extensions.txt` at the repo root, containing one VS Code
+  extension ID per line (the output of `code --list-extensions`).
+- `generate-dockerfile.cmd` / `.sh` should produce a tracked
+  `Dockerfile` that reproduces the development environment
+  sufficiently to run this repo's experiments / tests.
 
-   ```text
-   python -m build
-   ```
-
-   Output lands in `dist/` as the wheel + sdist.  These are the
-   files uploaded to Zenodo (as software assets) and, optionally,
-   to PyPI.
-
-5. **Commit the version bump + DOI fill-in.**  Suggested message:
-
-   ```text
-   vX.Y.Z release: fill DOI placeholders, build dist artefacts
-
-   - DOI 10.5281/zenodo.NNNNNNNN added to CITATION.cff,
-     release_notes/vX.Y*.md; __version__ bumped to X.Y.Z
-   - Wheel + sdist built into dist/
-   ```
-
-6. **[User] Upload the dist artefacts to Zenodo and publish.**
-   Drag `dist/dcl_core-X.Y.Z-py3-none-any.whl` and
-   `dist/dcl_core-X.Y.Z.tar.gz` into the reserved-DOI draft
-   deposit; fill in the metadata (title, authors, abstract,
-   keywords, related identifiers pointing at Paper~I); click
-   *Publish*.  This locks in the DOI and makes the deposit
-   immutable.
-
-7. **Tag and push.**
-
-   ```text
-   git tag vX.Y.Z
-   git push origin vX.Y.Z
-   ```
-
-   Tags are immutable once pushed; confirm before pushing.
-
-8. **Create the GitHub Release.**
-
-   ```text
-   gh release create vX.Y.Z \
-       --title "vX.Y.Z -- <one-line headline>" \
-       --notes-file release_notes/vX.Y.Z-release-message.md
-   ```
-
-9. **(Optional) Publish to PyPI.**
-
-   ```text
-   python -m twine upload dist/*
-   ```
-
-   Skip until adoption justifies the maintenance overhead;
-   downstream papers can pin via `git+https` URLs without PyPI.
-
-10. **Walk downstream consumers** per the *Downstream paper
-    coordination* section below.  Bump each paper's pin in
-    `virtual-env-requirements.txt` to the new `@vX.Y.Z` and add
-    a `references:` entry to its `CITATION.cff`.
+When the canonical implementations of these scripts land -- likely
+in the user's `wcde` repo (`C:\dev\wcde`) or in
+`dcl-sm-derivation`'s `release_notes/` -- copy them into each
+subproject.  Until then, Claude must stop at steps 9-10 and ask
+the User how to proceed.
 
 ## Semver impact summary at release time
 
@@ -110,25 +107,24 @@ The change log MUST classify the release's semver impact:
 - **PATCH** -- internal refactoring, bug fixes, no API surface
   change.
 
-Pre-1.0 (versions `0.X.Y`), MINOR may also break callers. Document
+Pre-1.0 (versions `0.X.Y`), MINOR may also break callers.  Document
 breaking changes in the change log either way.
 
 ## Immutability
 
-Once a tag is pushed and the GitHub Release is created, **the
-released version is immutable**. Do not amend the tagged commit. Do
-not re-deposit on Zenodo. A typo in the release notes gets a follow-up
-PATCH release; do not rewrite history.
+Once a tag is pushed and the GitHub Release is published, **the
+released version is immutable**.  Do not amend the tagged commit.
+Do not re-deposit on Zenodo.  A typo in the release notes gets a
+follow-up PATCH release; do not rewrite history.
 
-Downstream paper repos that depend on `dcl_core==X.Y.Z` are
-guaranteed by this immutability that their reproducibility claims
-hold.
+Downstream paper repos that pin `dcl_core==X.Y.Z` are guaranteed
+by this immutability that their reproducibility claims hold.
 
 ## Downstream paper coordination (post-release)
 
 Every dcl-core release triggers a *bump-and-rebuild* workflow in
-every paper repo that pins `dcl_core`.  After tagging and pushing a
-dcl-core release, **walk each downstream consumer and update its
+every paper repo that pins `dcl_core`.  After step 20 (GitHub
+Release published), **walk each downstream consumer and update its
 pinned version** before the consumer's next release.  A paper that
 is still pinned to `@main` or to a stale tag is non-reproducible
 relative to the latest engine; the bump is what restores its
@@ -139,17 +135,21 @@ reproducibility guarantee.
 Update this list as new papers adopt `dcl_core`.
 
 **`dcl-paper-03-tidal-ionization` (Paper~III).**  Pins `dcl_core`
-in `virtual-env-requirements.txt` via the line
-`dcl_core @ git+https://github.com/JackDMenendez/dcl-core@...`.
-After a `dcl-core vX.Y.Z` release: bump `@main` (or `@vX.Y.Z-prior`)
-to `@vX.Y.Z`; add a `references:` entry to `CITATION.cff` citing
-this release's Zenodo DOI; see Paper~III's
-`release_notes/README.md` *Pre-release: bump pinned dcl_core*
-section for the full checklist.
+in `virtual-env-requirements.txt` via a git URL.  After a
+`dcl-core vX.Y.Z` release: bump the pin to `@vX.Y.Z`, add a
+`references:` entry to `CITATION.cff` citing this release's
+Zenodo DOI, run `./refresh-deps.sh` to re-install, re-run the
+experiments, then commit "Pre-release: pin dcl_core to vX.Y.Z".
+See Paper~III's `release_notes/README.md` *Pre-release: bump
+pinned dcl_core* section for the full checklist.
 
-(As more papers adopt `dcl_core` -- proton internals, plasma /
-gradient ionization, recombination, etc. -- add another paragraph
-per consumer in the same shape.)
+**`dcl-delta-p-min`.**  The dp_min cross-engine investigation;
+also pins `dcl_core` via git URL.  Currently pinned at v0.1.0;
+will need to bump to v0.2.0 (or equivalent) once the `prob_floor`
+parameter lands on `dcl_core.core` for Phase 2 numerics.
+
+(As more papers adopt `dcl_core`, add another paragraph per
+consumer in the same shape.)
 
 Papers that do **not** depend on `dcl_core` and require no action:
 
@@ -160,16 +160,15 @@ Papers that do **not** depend on `dcl_core` and require no action:
 ### Co-released window
 
 When a paper is planned for release in the same window as
-`dcl-core` (the "co-released" case -- e.g. `dcl-core` v0.1.0 +
+`dcl-core` (the "co-released" case -- e.g. `dcl-core v0.1.0` +
 Paper~III v0.1), the order is fixed:
 
 1. Finalise and deposit `dcl-core` first; get the Zenodo DOI.
 2. In the paper repo, on `main`: bump the pin in
    `virtual-env-requirements.txt`, add the `references:` entry in
-   `CITATION.cff`, reinstall the venv, re-run the experiment to
-   confirm nothing broke under the pin change, commit
-   "Pre-release: pin dcl_core to vX.Y.Z" (this is the paper's
-   pre-release checkpoint).
+   `CITATION.cff`, run `./refresh-deps.sh` to reinstall, re-run
+   the experiment to confirm nothing broke under the pin change,
+   commit "Pre-release: pin dcl_core to vX.Y.Z".
 3. Proceed with the paper's own release flow from there.
 
 If the order is reversed (paper deposited first, then dcl-core),
