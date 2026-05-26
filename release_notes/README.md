@@ -1,7 +1,9 @@
 # release_notes/
 
-One folder per released version of `dcl_core`, with these artefacts
-per release:
+One folder per released version of `dcl_core`.  Per-release
+artefacts, by directory:
+
+`release_notes/`:
 
 - `vX.Y.md` -- **change log** for the release.  Long-form, internal:
   what changed, why, what's deferred, dependency / API changes,
@@ -22,7 +24,27 @@ per release:
   Identifier, Scheme, Resource Type per row).  Durable: reuse
   and edit each release.
 
-Templates:
+`.vscode/` (produced by step 9; ensure tracked):
+
+- `extensions.txt` -- `code --list-extensions --show-versions`
+  snapshot, one `extension-id@version` per line.
+
+`.dev-shell/` (produced by step 10; ensure tracked):
+
+- `Dockerfile` -- reproducible container image spec.  Default
+  base `python:3.12-slim` (overridable via
+  `--build-arg PYTHON_VERSION=...`).
+- `requirements.txt` -- `pip freeze` snapshot of the active
+  venv at release time.  Distinct from `virtual-env-requirements.txt`
+  (loose pins for everyday dev); this file captures the exact
+  resolved versions for reproducibility.
+
+Repo root (produced by step 10):
+
+- `HOWTO_REPRODUCE.md` -- copied from wcde's templates by
+  `generate-dockerfile`.  Reviewer-facing reproduction guide.
+
+Markdown templates:
 
 - `TEMPLATE.md` for the change log
 - `TEMPLATE-release-message.md` for the Release body
@@ -52,8 +74,8 @@ no paper, so steps 8 and 14 are skipped here).
 | 8b |   Review abstract, introduction, conclusion, `References.bib`; make necessary changes. | Claude |
 | 8c |   Build `main.tex` to `build/`. | Claude |
 | 8d |   Review PDF in `build/`. | User |
-| 9 | Run `export-vscode-extensions.{cmd,sh}` -> tracked `extensions.txt` at repo root. | Claude |
-| 10 | Run `generate-dockerfile.{cmd,sh}` -> tracked `Dockerfile`. | Claude |
+| 9 | Run wcde's `export-vscode-extensions` (see *Helper scripts* below); writes `.vscode/extensions.txt`. | Claude |
+| 10 | Run wcde's `generate-dockerfile`; writes `.dev-shell/Dockerfile`, `.dev-shell/requirements.txt`, and copies `HOWTO_REPRODUCE.md` to repo root. | Claude |
 | 11 | Reserve a Zenodo DOI (Zenodo "New upload" -> *Reserve DOI*) and supply the DOI string to Claude. | User |
 | 12 | DOI lands in `release_notes/vX.Y.md`. | Claude |
 | 13 | DOI lands in `CITATION.cff` (`doi:` field). | Claude |
@@ -76,25 +98,36 @@ no paper, so steps 8 and 14 are skipped here).
 After step 23, walk downstream consumers per the *Downstream paper
 coordination* section below.
 
-## Helper scripts required by steps 9 and 10
+## Helper scripts provided by wcde
 
-The two helper scripts referenced by steps 9 and 10 **do not yet
-exist** in this repo (or in any other DCL subproject as of
-2026-05-26).  Each release that runs this protocol is blocked at
-those steps until the scripts are created.
+Steps 9 and 10 invoke scripts that live in [wcde](../../wcde/)
+(the user's reproducible Windows dev-environment repo, default
+location `C:\dev\wcde`).  These scripts are NOT on PATH;
+invoke them by their full path, with the target repo as the
+trailing argument (defaults to `.` if omitted):
 
-- `export-vscode-extensions.cmd` / `.sh` should produce
-  `extensions.txt` at the repo root, containing one VS Code
-  extension ID per line (the output of `code --list-extensions`).
-- `generate-dockerfile.cmd` / `.sh` should produce a tracked
-  `Dockerfile` that reproduces the development environment
-  sufficiently to run this repo's experiments / tests.
+| Step | POSIX (bash, MSYS2/UCRT64) | Windows (cmd) |
+|---|---|---|
+| 9 | `bash /c/dev/wcde/shells/bash/lib/export-vscode-extensions.sh .` | `C:\dev\wcde\shells\windows\lib\export-vscode-extensions.cmd .` |
+| 10 | `bash /c/dev/wcde/shells/bash/lib/generate-dockerfile.sh .` | `C:\dev\wcde\shells\windows\lib\generate-dockerfile.cmd .` |
 
-When the canonical implementations of these scripts land -- likely
-in the user's `wcde` repo (`C:\dev\wcde`) or in
-`dcl-sm-derivation`'s `release_notes/` -- copy them into each
-subproject.  Until then, Claude must stop at steps 9-10 and ask
-the User how to proceed.
+Both scripts are idempotent -- safe to re-run.  If wcde lives
+elsewhere on a contributor's machine, substitute the actual path.
+
+**Caveats to address per release:**
+
+- `generate-dockerfile`'s output Dockerfile pins `python:3.12-slim`
+  by default.  The user's actual dev Python is 3.14.5 -- pass
+  `--build-arg PYTHON_VERSION=3.14` when building the image, or
+  edit the `ARG PYTHON_VERSION` line in the generated Dockerfile
+  before committing.  (When wcde is updated to auto-detect the
+  Python version from the active venv, this caveat goes away.)
+- `.vscode/` is in many default `.gitignore` templates as a
+  user-specific directory.  Add an `!extensions.txt` exception so
+  the snapshot is tracked despite the directory being ignored.
+- `.dev-shell/` is wcde-specific and usually not in stock
+  `.gitignore`; confirm it is tracked before committing in step
+  16.
 
 ## Semver impact summary at release time
 
