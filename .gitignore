@@ -18,7 +18,13 @@ external/
 .scratchpad/
 
 # Editor / IDE
-.vscode/
+# `.vscode/*` (not `.vscode/`) plus the `!extensions.txt` exception
+# keeps the wcde-generated extensions list tracked for PR contributors
+# (so they can rebuild the same VS Code workspace).  Do NOT collapse
+# back to `.vscode/` -- a directory ignore makes children unreachable
+# to `!` re-includes.  See release_notes/README.md step 9.
+.vscode/*
+!.vscode/extensions.txt
 .vs/
 .idea/
 

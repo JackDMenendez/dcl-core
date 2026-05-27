@@ -122,9 +122,12 @@ elsewhere on a contributor's machine, substitute the actual path.
   edit the `ARG PYTHON_VERSION` line in the generated Dockerfile
   before committing.  (When wcde is updated to auto-detect the
   Python version from the active venv, this caveat goes away.)
-- `.vscode/` is in many default `.gitignore` templates as a
-  user-specific directory.  Add an `!extensions.txt` exception so
-  the snapshot is tracked despite the directory being ignored.
+- `.vscode/` is otherwise blanket-ignored in this repo; the
+  `.vscode/*` + `!.vscode/extensions.txt` pattern in `.gitignore`
+  keeps the snapshot tracked so PR contributors can rebuild the
+  same VS Code workspace.  Do not collapse the `.vscode/*` rule
+  back to `.vscode/` -- a directory ignore makes children
+  unreachable to `!` re-includes.
 - `.dev-shell/` is wcde-specific and usually not in stock
   `.gitignore`; confirm it is tracked before committing in step
   16.
