@@ -1,18 +1,22 @@
 """Bipartite octahedral lattice geometry (T^3_diamond).
 
-The lattice IS the substrate on which causal sessions live. Two
-sublattices RGB and CMY alternate by tick parity; the six nearest-
-neighbour basis vectors split chirally.
+Lattice frame.  This IS Lambda_3, the d=3 instance of the diamond
+progression Lambda_d (``dcl-mathematics``).  Its vertices split into two
+parity classes V_3^+ / V_3^- by (x+y+z) mod 2 -- the RGB and CMY
+sublattices -- which alternate as the active sublattice by tick parity.
+Each site has coordination ``coord(d) = 2d = 6``: the six nearest-
+neighbour simplex-edge generators (E_3),
 
-    RGB (even ticks): V1=(1,1,1)   V2=(1,-1,-1)   V3=(-1,1,-1)
-    CMY (odd ticks):  -V1, -V2, -V3
+    RGB (even ticks, V_3^+): V1=(1,1,1)   V2=(1,-1,-1)   V3=(-1,1,-1)
+    CMY (odd ticks,  V_3^-): -V1, -V2, -V3
 
-The bipartite structure IS the Dirac structure -- gamma_5 acts as
-multiplication by +/-1 on the RGB/CMY sublattices. The continuum limit
-recovers (3+1)-dim Minkowski space with the standard Clifford algebra.
+physics: the bipartite structure IS the Dirac structure -- gamma_5 acts
+as +/-1 on the RGB/CMY sublattices, and the six basis vectors are the
+gamma-matrix directions.  The continuum limit recovers (3+1)-dim
+Minkowski space with the standard Clifford algebra.
 
 See `docs/reference/lattice.md` for the geometric construction and
-`docs/design/03_naming_convention.md` for naming.
+`docs/design/03_naming_convention.md` for the two-frame naming rule.
 """
 
 from __future__ import annotations
@@ -24,7 +28,10 @@ import numpy as np
 
 from .backends import get_backend
 
-# Sublattice basis vectors. These IS the framework's chirality structure.
+# Simplex-edge generators E_3 of the two parity classes (the protected
+# RGB/CMY lattice geometry; see docs/design/03_naming_convention.md).
+# physics: these IS the framework's chirality structure -- the gamma-matrix
+# directions of the bipartite Dirac operator.
 # Do not reorder, do not renormalise -- downstream code identifies sublattice
 # by sign of the first nonzero component.
 RGB_VECTORS: tuple[tuple[int, int, int], ...] = (
@@ -73,6 +80,15 @@ class BipartiteLattice:
         """Total number of lattice sites (product of `shape`)."""
         nx, ny, nz = self.shape
         return nx * ny * nz
+
+    @property
+    def coordination(self) -> int:
+        """Neighbour count per site: ``coord(d) = 2d = 6`` at d=3.
+
+        physics: the six gamma-matrix directions; the denominator of the
+        Born-rule path count (6^N paths over N ticks).
+        """
+        return len(ALL_VECTORS)
 
     def parity_field(self) -> np.ndarray:
         """Return a `shape`-sized int array with 0 on RGB sites, 1 on CMY.

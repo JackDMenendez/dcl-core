@@ -30,10 +30,10 @@ def test_hop_uniform_amplitude_is_stationary(small_shape: tuple[int, int, int]) 
     lattice = BipartiteLattice(shape=small_shape)
     session = DiscreteCausalSession(lattice=lattice, n_units=8 * 8 * 8, omega=0.0)
     # Initialise: one token per site, zero phase.
-    session.N_R[...] = 1
-    session.N_L[...] = 0
-    session.phi_R[...] = 0.0
-    session.phi_L[...] = 0.0
+    session.N_RGB[...] = 1
+    session.N_CMY[...] = 0
+    session.phi_RGB[...] = 0.0
+    session.phi_CMY[...] = 0.0
 
     hop = HopOperator(lattice=lattice)
     psi_R_new, psi_L_new = hop.step(session, parity="even", external_potential=None)
@@ -61,10 +61,10 @@ def test_massless_even_tick_replaces_R_with_hopped_L(
     lattice = BipartiteLattice(shape=small_shape)
     n_units = 2 * 8 * 8 * 8  # split 50/50 across chiralities
     session = DiscreteCausalSession(lattice=lattice, n_units=n_units, omega=0.0)
-    session.N_R[...] = 1
-    session.N_L[...] = 1
-    session.phi_R[...] = 0.0
-    session.phi_L[...] = 0.0
+    session.N_RGB[...] = 1
+    session.N_CMY[...] = 1
+    session.phi_RGB[...] = 0.0
+    session.phi_CMY[...] = 0.0
 
     hop = HopOperator(lattice=lattice)
     psi_R_new, psi_L_new = hop.step(session, parity="even")
@@ -109,18 +109,18 @@ def test_step_does_not_mutate_session(small_shape: tuple[int, int, int]) -> None
         lattice, n_units=1_000, omega=0.5, position=(4, 4, 4)
     )
 
-    N_R_before = session.N_R.copy()
-    N_L_before = session.N_L.copy()
-    phi_R_before = session.phi_R.copy()
-    phi_L_before = session.phi_L.copy()
+    N_RGB_before = session.N_RGB.copy()
+    N_CMY_before = session.N_CMY.copy()
+    phi_RGB_before = session.phi_RGB.copy()
+    phi_CMY_before = session.phi_CMY.copy()
 
     hop = HopOperator(lattice=lattice)
     _ = hop.step(session, parity="even")
 
-    np.testing.assert_array_equal(session.N_R, N_R_before)
-    np.testing.assert_array_equal(session.N_L, N_L_before)
-    np.testing.assert_array_equal(session.phi_R, phi_R_before)
-    np.testing.assert_array_equal(session.phi_L, phi_L_before)
+    np.testing.assert_array_equal(session.N_RGB, N_RGB_before)
+    np.testing.assert_array_equal(session.N_CMY, N_CMY_before)
+    np.testing.assert_array_equal(session.phi_RGB, phi_RGB_before)
+    np.testing.assert_array_equal(session.phi_CMY, phi_CMY_before)
 
 
 def test_step_rejects_wrong_external_potential_shape(

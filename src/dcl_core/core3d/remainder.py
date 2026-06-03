@@ -63,6 +63,7 @@ polished rationale.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 
 import numpy as np
@@ -72,7 +73,7 @@ from .lattice import BipartiteLattice
 
 
 @dataclass
-class BresenhamResidual:
+class TokenResidual:
     """Error-diffusion accumulator: fractional bits carried tick-to-tick.
 
     Parameters
@@ -85,7 +86,7 @@ class BresenhamResidual:
     ----------
     carry : array
         Per-site, per-chirality fractional residual in [0, 1). Same
-        shape as the session's `N_R` / `N_L` fields, plus a leading
+        shape as the session's `N_RGB` / `N_CMY` fields, plus a leading
         chirality dimension of size 2. Initialised to zeros.
 
     Notes
@@ -93,7 +94,7 @@ class BresenhamResidual:
     The carry field is **part of the session's state for
     reproducibility purposes**. When serialising / restoring a session
     at a checkpoint, the carry must be saved and restored alongside
-    `N_R`, `N_L`, `phi_R`, `phi_L`. Otherwise the long-run dynamics
+    `N_RGB`, `N_CMY`, `phi_RGB`, `phi_CMY`. Otherwise the long-run dynamics
     will diverge from the original trajectory.
     """
 
@@ -121,24 +122,27 @@ class BresenhamResidual:
 
     def quantise(
         self,
-        N_target_R: np.ndarray,
-        N_target_L: np.ndarray,
-        n_units_total: int,
+        N_target_RGB: np.ndarray | None = None,
+        N_target_CMY: np.ndarray | None = None,
+        n_units_total: int | None = None,
+        *,
+        N_target_R: np.ndarray | None = None,  # deprecated alias -> N_target_RGB
+        N_target_L: np.ndarray | None = None,  # deprecated alias -> N_target_CMY
     ) -> tuple[np.ndarray, np.ndarray]:
         """Convert fractional targets into integer counts, conserving total.
 
         Parameters
         ----------
-        N_target_R, N_target_L : float arrays
+        N_target_RGB, N_target_CMY : float arrays
             Analytical target counts at each site, from the hop. May
             be non-integer; may not sum exactly to `n_units_total`.
         n_units_total : int
             The session's `n_units`. The returned integer arrays
-            satisfy `sum(N_R) + sum(N_L) == n_units_total` exactly.
+            satisfy `sum(N_RGB) + sum(N_CMY) == n_units_total` exactly.
 
         Returns
         -------
-        (N_R_int, N_L_int) : tuple of int arrays
+        (N_RGB_int, N_CMY_int) : tuple of int arrays
             Integer token counts at each site, after error-diffusion
             and global rebalancing. A=1 is satisfied exactly.
 
@@ -174,34 +178,50 @@ class BresenhamResidual:
         is one of the design knobs the complex-carry switch will
         revisit.
         """
-        carry_R = self.carry[0]
-        carry_L = self.carry[1]
+        if N_target_R is not None or N_target_L is not None:
+            warnings.warn(
+                "quantise(N_target_R=, N_target_L=) are deprecated lattice-frame "
+                "aliases; use N_target_RGB / N_target_CMY",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            N_target_RGB = N_target_R if N_target_R is not None else N_target_RGB
+            N_target_CMY = N_target_L if N_target_L is not None else N_target_CMY
+        if N_target_RGB is None or N_target_CMY is None or n_units_total is None:
+            raise TypeError(
+                "quantise requires N_target_RGB, N_target_CMY, and n_units_total"
+            )
 
-        # 1.  Running accumulator at each site.
-        acc_R = N_target_R + carry_R
-        acc_L = N_target_L + carry_L
+        carry_RGB = self.carry[0]
+        carry_CMY = self.carry[1]
+
+        # 1.  Running sub-token accumulator at each site: carry + target.
+        # physics: fractional probability mass below the epsilon_P threshold,
+        # carried forward from the previous tick (the off-shell residual).
+        acc_RGB = N_target_RGB + carry_RGB
+        acc_CMY = N_target_CMY + carry_CMY
 
         # 2.  Floor pass.
         backend = get_backend(self.lattice.backend)
-        floor_R = backend.floor(acc_R)
-        floor_L = backend.floor(acc_L)
-        N_R_int = floor_R.astype(np.int64)
-        N_L_int = floor_L.astype(np.int64)
-        new_carry_R = acc_R - floor_R
-        new_carry_L = acc_L - floor_L
+        floor_RGB = backend.floor(acc_RGB)
+        floor_CMY = backend.floor(acc_CMY)
+        N_RGB_int = floor_RGB.astype(np.int64)
+        N_CMY_int = floor_CMY.astype(np.int64)
+        new_carry_RGB = acc_RGB - floor_RGB
+        new_carry_CMY = acc_CMY - floor_CMY
 
         # 3.  Global rebalance to enforce sum == n_units_total exactly.
-        sum_int = int(backend.sum_all(N_R_int)) + int(backend.sum_all(N_L_int))
+        sum_int = int(backend.sum_all(N_RGB_int)) + int(backend.sum_all(N_CMY_int))
         deficit = n_units_total - sum_int
 
         if deficit != 0:
-            N_R_int, N_L_int, new_carry_R, new_carry_L = _rebalance(
-                N_R_int, N_L_int, new_carry_R, new_carry_L, deficit
+            N_RGB_int, N_CMY_int, new_carry_RGB, new_carry_CMY = _rebalance(
+                N_RGB_int, N_CMY_int, new_carry_RGB, new_carry_CMY, deficit
             )
 
-        self.carry[0] = new_carry_R
-        self.carry[1] = new_carry_L
-        return N_R_int, N_L_int
+        self.carry[0] = new_carry_RGB
+        self.carry[1] = new_carry_CMY
+        return N_RGB_int, N_CMY_int
 
     def drift_magnitude(self) -> float:
         """Total fractional residual currently held; a coarse health metric.
@@ -215,10 +235,10 @@ class BresenhamResidual:
 
 
 def _rebalance(
-    N_R: np.ndarray,
-    N_L: np.ndarray,
-    carry_R: np.ndarray,
-    carry_L: np.ndarray,
+    N_RGB: np.ndarray,
+    N_CMY: np.ndarray,
+    carry_RGB: np.ndarray,
+    carry_CMY: np.ndarray,
     deficit: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Push `deficit` tokens across the (R, L) chiralities to enforce A=1.
@@ -228,14 +248,14 @@ def _rebalance(
     demote bottom-``|deficit|`` sites (sites with ``N_int > 0`` only)
     by one token, carry reset to 0.
 
-    Returns rebalanced ``(N_R, N_L, carry_R, carry_L)``.  The
+    Returns rebalanced ``(N_RGB, N_CMY, carry_RGB, carry_CMY)``.  The
     chirality dimension is flattened internally so the top-k pick is
     across both R and L sites simultaneously -- there is no
     "promote R first, then L" asymmetry.
     """
-    n_R_sites = carry_R.size
-    flat_N = np.concatenate([N_R.ravel(), N_L.ravel()])
-    flat_carry = np.concatenate([carry_R.ravel(), carry_L.ravel()])
+    n_RGB_sites = carry_RGB.size
+    flat_N = np.concatenate([N_RGB.ravel(), N_CMY.ravel()])
+    flat_carry = np.concatenate([carry_RGB.ravel(), carry_CMY.ravel()])
 
     if deficit > 0:
         # Highest-carry sites get the extra tokens.
@@ -251,8 +271,16 @@ def _rebalance(
         flat_N[bot_idx] -= 1
         flat_carry[bot_idx] = 0.0
 
-    N_R_new = flat_N[:n_R_sites].reshape(N_R.shape)
-    N_L_new = flat_N[n_R_sites:].reshape(N_L.shape)
-    carry_R_new = flat_carry[:n_R_sites].reshape(carry_R.shape)
-    carry_L_new = flat_carry[n_R_sites:].reshape(carry_L.shape)
-    return N_R_new, N_L_new, carry_R_new, carry_L_new
+    N_RGB_new = flat_N[:n_RGB_sites].reshape(N_RGB.shape)
+    N_CMY_new = flat_N[n_RGB_sites:].reshape(N_CMY.shape)
+    carry_RGB_new = flat_carry[:n_RGB_sites].reshape(carry_RGB.shape)
+    carry_CMY_new = flat_carry[n_RGB_sites:].reshape(carry_CMY.shape)
+    return N_RGB_new, N_CMY_new, carry_RGB_new, carry_CMY_new
+
+
+# Deprecated alias.  The class was renamed BresenhamResidual -> TokenResidual:
+# "Bresenham" named the *algorithm* (error-diffusion), not the lattice object,
+# which IS the sub-token fractional carry that keeps A=1 exact.  The
+# error-diffusion strategy is unchanged; see this module's docstring.  Retained
+# for backward-compatibility (downstream pins, old call sites).
+BresenhamResidual = TokenResidual

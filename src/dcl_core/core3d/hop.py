@@ -18,12 +18,12 @@ the three X-basis-vector shifts.
 
 In the integer-token framework, the analytical step computes a
 fractional new token count `N_new(x) = n_units * |psi_new(x)|^2`. The
-fractional residual is handled by :class:`BresenhamResidual`; this
+fractional residual is handled by :class:`TokenResidual`; this
 operator just produces the analytical target.
 
 TODO(complex-carry, v0.2.0): squaring `psi_new` to `|psi|^2` at this
 boundary discards the phase information that a complex
-:class:`BresenhamResidual.carry` would need.  If the residual switches
+:class:`TokenResidual.carry` would need.  If the residual switches
 to complex carry, `step` must hand the residual `psi_new` directly
 (complex) instead of `N_target` (real).  See
 `notes/bresenham_residual_design.md` and `remainder.py`'s module
@@ -68,7 +68,7 @@ class HopOperator:
     The operator is stateless; calling it on a session returns the
     new analytical amplitude target without mutating the session.
     The token-count update (rounding + residual carry) is done by
-    :class:`~dcl_core.remainder.BresenhamResidual`.
+    :class:`~dcl_core.remainder.TokenResidual`.
 
     Backends:
       "cpu" -- NumPy broadcasting + np.roll for periodic shifts.
@@ -99,7 +99,7 @@ class HopOperator:
         -------
         (psi_R_new, psi_L_new) : tuple of complex arrays
             Analytical Dirac evolution for one tick. The
-            BresenhamResidual then converts these to new integer
+            TokenResidual then converts these to new integer
             token counts.
 
         Notes
@@ -132,11 +132,14 @@ class HopOperator:
 
         vectors = self.lattice.neighbour_offsets(parity)
         if parity == "even":
-            # RGB active: psi_R gets the hopped L; psi_L is passive.
+            # Even tick: V_3^+ (RGB) is the active sublattice.  The RGB
+            # component takes the hopped CMY amplitude; CMY is passive.
+            # physics: psi_R updates from hopped psi_L (Dirac kinetic term).
             hop_L = self._hop_average(psi_L, vectors)
             psi_R_new = cos_half * hop_L + 1j * sin_half * psi_R
             psi_L_new = psi_L
-        else:  # "odd": CMY active.
+        else:  # odd tick: V_3^- (CMY) active.
+            # physics: psi_L updates from hopped psi_R.
             hop_R = self._hop_average(psi_R, vectors)
             psi_L_new = cos_half * hop_R + 1j * sin_half * psi_L
             psi_R_new = psi_R

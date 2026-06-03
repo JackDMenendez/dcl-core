@@ -10,7 +10,7 @@ Each tick:
 
     1. Determine parity from tick index (even -> RGB active, odd -> CMY).
     2. For each session: HopOperator.step(...) -> analytical psi_new.
-    3. For each session: BresenhamResidual.quantise(...) -> integer N_new.
+    3. For each session: TokenResidual.quantise(...) -> integer N_new.
     4. Apply pairwise interactions (Coulomb, gauge phase, emission pair).
     5. (Sanity) Each session: session.assert_unity().
     6. Advance tick counter.
@@ -35,7 +35,7 @@ import numpy as np
 
 from .hop import HopOperator
 from .lattice import BipartiteLattice, TickParity
-from .remainder import BresenhamResidual
+from .remainder import TokenResidual
 from .session import DiscreteCausalSession
 
 # Type alias for the post-tick callback.  Receives the scheduler so the
@@ -74,7 +74,7 @@ class TickScheduler:
     ----------
     tick : int
         Current tick counter. Even -> RGB active, odd -> CMY.
-    residuals : dict[int, BresenhamResidual]
+    residuals : dict[int, TokenResidual]
         One residual per session, keyed by session index.
     """
 
@@ -82,7 +82,7 @@ class TickScheduler:
     hop: HopOperator
     sessions: list[DiscreteCausalSession] = field(default_factory=list)
     tick: int = 0
-    residuals: dict[int, BresenhamResidual] = field(default_factory=dict)
+    residuals: dict[int, TokenResidual] = field(default_factory=dict)
     on_tick_complete: TickCallback | None = None
 
     def parity_now(self) -> TickParity:
@@ -107,7 +107,7 @@ class TickScheduler:
             )
         idx = len(self.sessions)
         self.sessions.append(session)
-        self.residuals[idx] = BresenhamResidual(lattice=self.lattice)
+        self.residuals[idx] = TokenResidual(lattice=self.lattice)
         return idx
 
     def step(self) -> None:
@@ -115,7 +115,7 @@ class TickScheduler:
 
         After this call:
           - `self.tick` is incremented by 1.
-          - Each session's `(N_R, N_L, phi_R, phi_L)` reflect one tick
+          - Each session's `(N_RGB, N_CMY, phi_RGB, phi_CMY)` reflect one tick
             of bipartite Dirac evolution.
           - Each session's `assert_unity()` would pass (A=1 holds).
           - Pairwise interactions registered for this tick have fired
@@ -158,23 +158,23 @@ class TickScheduler:
                 psi_L_new = psi_L_new * inv_norm
 
             # Fractional token targets sum to ~`n_units` (modulo eps).
-            N_target_R = np.abs(psi_R_new) ** 2 * session.n_units
-            N_target_L = np.abs(psi_L_new) ** 2 * session.n_units
+            N_target_RGB = np.abs(psi_R_new) ** 2 * session.n_units
+            N_target_CMY = np.abs(psi_L_new) ** 2 * session.n_units
 
             # 3.  Integer quantisation.
             residual = self.residuals[idx]
-            N_R_int, N_L_int = residual.quantise(
-                N_target_R, N_target_L, session.n_units
+            N_RGB_int, N_CMY_int = residual.quantise(
+                N_target_RGB, N_target_CMY, session.n_units
             )
 
             # 4.  (pairwise interactions go here; v0.2.0+).
 
             # 5.  Write back.  Phases are the analytical hop's angles;
             # the integer N supplies the amplitude.
-            session.N_R[...] = N_R_int
-            session.N_L[...] = N_L_int
-            session.phi_R[...] = np.angle(psi_R_new)
-            session.phi_L[...] = np.angle(psi_L_new)
+            session.N_RGB[...] = N_RGB_int
+            session.N_CMY[...] = N_CMY_int
+            session.phi_RGB[...] = np.angle(psi_R_new)
+            session.phi_CMY[...] = np.angle(psi_L_new)
 
             # 6.  Cheap sanity check.  This should never fire if
             # `quantise` is correct.

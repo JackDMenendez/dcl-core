@@ -55,7 +55,7 @@ def sum_all(array: np.ndarray) -> np.generic:
 
 
 def floor(array: np.ndarray) -> np.ndarray:
-    """Element-wise floor (stays float).  Used by `BresenhamResidual.quantise`
+    """Element-wise floor (stays float).  Used by `TokenResidual.quantise`
     to split an accumulator into integer + fractional parts.
     """
     return np.floor(array)

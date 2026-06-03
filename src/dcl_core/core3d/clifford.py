@@ -1,5 +1,14 @@
 """Dirac gamma matrices and the Minkowski metric (symbolic, sympy).
 
+Two-frame note.  This module is the *physics frame* reference: the
+gamma matrices are physics objects (named as such, correctly -- see
+``docs/design/03_naming_convention.md``).  They exist to check the
+*lattice frame*: the small-k expansion of the bipartite hop's structure
+factor (``HopOperator.fourier_kernel``) approximates ``i k . gamma``, so
+the lattice geometry reproduces this Clifford algebra in the continuum
+limit.  The lattice-side basis vectors (E_3 = RGB/CMY) ARE the discrete
+analogue of these gamma directions.
+
 Why this lives in its own module
 --------------------------------
 sympy is an **optional** dependency (declared in the ``[sympy]`` and

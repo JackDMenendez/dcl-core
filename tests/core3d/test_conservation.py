@@ -79,14 +79,14 @@ def test_delta_at_places_all_tokens_at_position(
     )
 
     # Origin site empty (and every site that isn't `position`).
-    n_R_off = int(session.N_R.sum()) - int(session.N_R[position])
-    n_L_off = int(session.N_L.sum()) - int(session.N_L[position])
+    n_R_off = int(session.N_RGB.sum()) - int(session.N_RGB[position])
+    n_L_off = int(session.N_CMY.sum()) - int(session.N_CMY[position])
     assert n_R_off == 0
     assert n_L_off == 0
 
     # `position` holds the full budget, split with extra going to R.
-    assert int(session.N_R[position]) == (101 + 1) // 2  # 51
-    assert int(session.N_L[position]) == 101 // 2  # 50
+    assert int(session.N_RGB[position]) == (101 + 1) // 2  # 51
+    assert int(session.N_CMY[position]) == 101 // 2  # 50
     assert session.total_tokens() == 101
 
 
@@ -123,15 +123,15 @@ def test_from_arrays_round_trips_population(
     from dcl_core.core3d import BipartiteLattice, DiscreteCausalSession
 
     lattice = BipartiteLattice(shape=small_shape)
-    N_R = np.zeros(small_shape, dtype=np.int64)
-    N_L = np.zeros(small_shape, dtype=np.int64)
-    N_R[1, 2, 3] = 40
-    N_L[4, 5, 6] = 60
+    N_RGB = np.zeros(small_shape, dtype=np.int64)
+    N_CMY = np.zeros(small_shape, dtype=np.int64)
+    N_RGB[1, 2, 3] = 40
+    N_CMY[4, 5, 6] = 60
     session = DiscreteCausalSession.from_arrays(
-        lattice, n_units=100, omega=0.1, N_R=N_R, N_L=N_L
+        lattice, n_units=100, omega=0.1, N_RGB=N_RGB, N_CMY=N_CMY
     )
-    np.testing.assert_array_equal(session.N_R, N_R)
-    np.testing.assert_array_equal(session.N_L, N_L)
+    np.testing.assert_array_equal(session.N_RGB, N_RGB)
+    np.testing.assert_array_equal(session.N_CMY, N_CMY)
     assert session.total_tokens() == 100
 
 
@@ -142,18 +142,18 @@ def test_from_arrays_validates_total(small_shape: tuple[int, int, int]) -> None:
     from dcl_core.core3d import BipartiteLattice, DiscreteCausalSession
 
     lattice = BipartiteLattice(shape=small_shape)
-    N_R = np.zeros(small_shape, dtype=np.int64)
-    N_L = np.zeros(small_shape, dtype=np.int64)
-    N_R[0, 0, 0] = 50
-    N_L[0, 0, 0] = 60  # total = 110, but n_units = 100 below
+    N_RGB = np.zeros(small_shape, dtype=np.int64)
+    N_CMY = np.zeros(small_shape, dtype=np.int64)
+    N_RGB[0, 0, 0] = 50
+    N_CMY[0, 0, 0] = 60  # total = 110, but n_units = 100 below
     with pytest.raises(ValueError):
         DiscreteCausalSession.from_arrays(
-            lattice, n_units=100, omega=0.1, N_R=N_R, N_L=N_L
+            lattice, n_units=100, omega=0.1, N_RGB=N_RGB, N_CMY=N_CMY
         )
 
 
 def test_from_arrays_validates_shape(small_shape: tuple[int, int, int]) -> None:
-    """`from_arrays` raises if N_R / N_L shapes don't match the lattice.
+    """`from_arrays` raises if N_RGB / N_CMY shapes don't match the lattice.
 
     The shape check fires before the sum-equals-n_units check, so the
     test uses ``n_units=1`` (any value works -- we never reach the
@@ -165,46 +165,46 @@ def test_from_arrays_validates_shape(small_shape: tuple[int, int, int]) -> None:
 
     lattice = BipartiteLattice(shape=small_shape)
     wrong_shape = tuple(s + 1 for s in small_shape)
-    N_R_wrong = np.zeros(wrong_shape, dtype=np.int64)
-    N_L_ok = np.zeros(small_shape, dtype=np.int64)
+    N_RGB_wrong = np.zeros(wrong_shape, dtype=np.int64)
+    N_CMY_ok = np.zeros(small_shape, dtype=np.int64)
     with pytest.raises(ValueError):
         DiscreteCausalSession.from_arrays(
-            lattice, n_units=1, omega=0.1, N_R=N_R_wrong, N_L=N_L_ok
+            lattice, n_units=1, omega=0.1, N_RGB=N_RGB_wrong, N_CMY=N_CMY_ok
         )
-    # And symmetrically for N_L.
-    N_R_ok = np.zeros(small_shape, dtype=np.int64)
-    N_L_wrong = np.zeros(wrong_shape, dtype=np.int64)
+    # And symmetrically for N_CMY.
+    N_RGB_ok = np.zeros(small_shape, dtype=np.int64)
+    N_CMY_wrong = np.zeros(wrong_shape, dtype=np.int64)
     with pytest.raises(ValueError):
         DiscreteCausalSession.from_arrays(
-            lattice, n_units=1, omega=0.1, N_R=N_R_ok, N_L=N_L_wrong
+            lattice, n_units=1, omega=0.1, N_RGB=N_RGB_ok, N_CMY=N_CMY_wrong
         )
 
 
 def test_from_arrays_accepts_custom_phases(
     small_shape: tuple[int, int, int],
 ) -> None:
-    """`from_arrays` accepts user-supplied phi_R / phi_L verbatim."""
+    """`from_arrays` accepts user-supplied phi_RGB / phi_CMY verbatim."""
     import numpy as np
 
     from dcl_core.core3d import BipartiteLattice, DiscreteCausalSession
 
     lattice = BipartiteLattice(shape=small_shape)
-    N_R = np.zeros(small_shape, dtype=np.int64)
-    N_L = np.zeros(small_shape, dtype=np.int64)
-    N_R[0, 0, 0] = 100
-    phi_R = np.full(small_shape, 0.5, dtype=np.float64)
-    phi_L = np.full(small_shape, -0.25, dtype=np.float64)
+    N_RGB = np.zeros(small_shape, dtype=np.int64)
+    N_CMY = np.zeros(small_shape, dtype=np.int64)
+    N_RGB[0, 0, 0] = 100
+    phi_RGB = np.full(small_shape, 0.5, dtype=np.float64)
+    phi_CMY = np.full(small_shape, -0.25, dtype=np.float64)
     session = DiscreteCausalSession.from_arrays(
         lattice,
         n_units=100,
         omega=0.1,
-        N_R=N_R,
-        N_L=N_L,
-        phi_R=phi_R,
-        phi_L=phi_L,
+        N_RGB=N_RGB,
+        N_CMY=N_CMY,
+        phi_RGB=phi_RGB,
+        phi_CMY=phi_CMY,
     )
-    np.testing.assert_array_equal(session.phi_R, phi_R)
-    np.testing.assert_array_equal(session.phi_L, phi_L)
+    np.testing.assert_array_equal(session.phi_RGB, phi_RGB)
+    np.testing.assert_array_equal(session.phi_CMY, phi_CMY)
 
 
 # ---------------------------------------------------------------------------
@@ -215,7 +215,7 @@ def test_from_arrays_accepts_custom_phases(
 def test_wavepacket_total_equals_n_units(small_shape: tuple[int, int, int]) -> None:
     """The Gaussian wavepacket factory still satisfies A=1 exactly.
 
-    The integer quantisation reuses ``BresenhamResidual``; the
+    The integer quantisation reuses ``TokenResidual``; the
     `from_arrays`-style sum check is not applicable since the
     factory constructs via the bare ctor, so this test stands in
     as the A=1 contract at the wavepacket entry point.
@@ -253,7 +253,7 @@ def test_wavepacket_localised_near_center(small_shape: tuple[int, int, int]) -> 
         center=center,
         sigma=1.0,
     )
-    N_total = session.N_R + session.N_L
+    N_total = session.N_RGB + session.N_CMY
     # Centre site IS the peak.
     assert int(N_total[center]) == int(N_total.max())
     # Far corner sites are empty for this sigma / n_units.
@@ -281,8 +281,8 @@ def test_wavepacket_momentum_imprints_phase_gradient(
     )
     coords = np.indices(small_shape, dtype=np.float64)
     expected = k[0] * coords[0] + k[1] * coords[1] + k[2] * coords[2]
-    np.testing.assert_allclose(session.phi_R, expected)
-    np.testing.assert_allclose(session.phi_L, expected)
+    np.testing.assert_allclose(session.phi_RGB, expected)
+    np.testing.assert_allclose(session.phi_CMY, expected)
 
 
 def test_wavepacket_accepts_anisotropic_sigma(
@@ -368,22 +368,22 @@ def test_momentum_applies_linear_phase_gradient(
 
     coords = np.indices(small_shape, dtype=np.float64)
     expected = k[0] * coords[0] + k[1] * coords[1] + k[2] * coords[2]
-    np.testing.assert_allclose(session.phi_R, expected)
-    np.testing.assert_allclose(session.phi_L, expected)
+    np.testing.assert_allclose(session.phi_RGB, expected)
+    np.testing.assert_allclose(session.phi_CMY, expected)
 
 
 def test_zero_momentum_leaves_phases_at_zero(
     small_shape: tuple[int, int, int],
 ) -> None:
-    """Default ``momentum = (0, 0, 0)`` does NOT touch ``phi_R`` / ``phi_L``."""
+    """Default ``momentum = (0, 0, 0)`` does NOT touch ``phi_RGB`` / ``phi_CMY``."""
     import numpy as np
 
     from dcl_core.core3d import BipartiteLattice, DiscreteCausalSession
 
     lattice = BipartiteLattice(shape=small_shape)
     session = DiscreteCausalSession(lattice=lattice, n_units=100, omega=0.1)
-    np.testing.assert_array_equal(session.phi_R, np.zeros(small_shape))
-    np.testing.assert_array_equal(session.phi_L, np.zeros(small_shape))
+    np.testing.assert_array_equal(session.phi_RGB, np.zeros(small_shape))
+    np.testing.assert_array_equal(session.phi_CMY, np.zeros(small_shape))
 
 
 # ---------------------------------------------------------------------------
@@ -395,7 +395,7 @@ def test_assert_unity_raises_on_corruption(small_shape: tuple[int, int, int]) ->
     """`session.assert_unity()` raises if state is hand-corrupted.
 
     Sanity check on the sanity check.  Uses ``delta_at(..., (0,0,0))``
-    so that ``N_R.flat[0]`` carries tokens and the decrement actually
+    so that ``N_RGB.flat[0]`` carries tokens and the decrement actually
     reduces the total.
     """
     from dcl_core.core3d import BipartiteLattice, DiscreteCausalSession
@@ -404,7 +404,7 @@ def test_assert_unity_raises_on_corruption(small_shape: tuple[int, int, int]) ->
     session = DiscreteCausalSession.delta_at(
         lattice, n_units=100, omega=0.1, position=(0, 0, 0)
     )
-    session.N_R.flat[0] = max(0, int(session.N_R.flat[0]) - 1)
+    session.N_RGB.flat[0] = max(0, int(session.N_RGB.flat[0]) - 1)
     with pytest.raises(AssertionError):
         session.assert_unity()
 
@@ -417,7 +417,7 @@ def test_assert_unity_raises_on_corruption(small_shape: tuple[int, int, int]) ->
 def test_amplitude_is_consistent_with_token_field(
     small_shape: tuple[int, int, int],
 ) -> None:
-    """`round(|amplitude("R")|^2 * n_units) == N_R` bitwise; same for L.
+    """`round(|amplitude("R")|^2 * n_units) == N_RGB` bitwise; same for L.
 
     The complex amplitude is the implicit derivation
     `psi = sqrt(N/n_units) * exp(i*phi)`; squaring + rescaling must
@@ -440,8 +440,8 @@ def test_amplitude_is_consistent_with_token_field(
 
     recovered_R = (np.abs(psi_R) ** 2 * session.n_units).round().astype(np.int64)
     recovered_L = (np.abs(psi_L) ** 2 * session.n_units).round().astype(np.int64)
-    np.testing.assert_array_equal(recovered_R, session.N_R)
-    np.testing.assert_array_equal(recovered_L, session.N_L)
+    np.testing.assert_array_equal(recovered_R, session.N_RGB)
+    np.testing.assert_array_equal(recovered_L, session.N_CMY)
 
 
 def test_amplitude_rejects_unknown_chirality(small_shape: tuple[int, int, int]) -> None:

@@ -28,7 +28,7 @@ to call a factory classmethod:
 - :meth:`DiscreteCausalSession.delta_at` -- a localised point source at
   a chosen lattice site, split 50/50 between R and L.
 - :meth:`DiscreteCausalSession.from_arrays` -- a fully custom initial
-  state from explicit `N_R`, `N_L`, optional `phi_R`, `phi_L` arrays.
+  state from explicit `N_RGB`, `N_CMY`, optional `phi_RGB`, `phi_CMY` arrays.
 
 Experiments with multiple sessions (hydrogen emission, proton internals,
 scattering) construct each session via its own factory call so the
@@ -42,6 +42,7 @@ See:
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -50,7 +51,12 @@ import numpy as np
 from .backends import get_backend
 from .lattice import BipartiteLattice
 
-Chirality = Literal["R", "L"]
+# Component selector for the bipartite token state.  "RGB"/"CMY" are the
+# lattice-frame names (the two sublattice components, V_3^+ / V_3^-); "R"/"L"
+# are accepted physics-frame aliases.
+# physics: RGB/CMY component IS the right/left-chiral Dirac spinor psi_R/psi_L.
+Component = Literal["RGB", "CMY", "R", "L"]
+Chirality = Component  # deprecated alias for the old name
 
 
 def _validate_position(
@@ -85,15 +91,15 @@ class DiscreteCausalSession:
         omega=pi/2 -> maximal Zitterbewegung.
     momentum : (float, float, float), default (0, 0, 0)
         Plane-wave momentum in lattice units. When nonzero, the bare
-        constructor imprints `phi_R(x) = phi_L(x) = k.x` across the
+        constructor imprints `phi_RGB(x) = phi_CMY(x) = k.x` across the
         whole lattice; combined with a population (delta_at / etc.)
         this IS a moving wavepacket. Matches Paper I's
         `CausalSession(initial_node, momentum=...)` semantics.
 
     Notes
     -----
-    Token distributions `N_R(x)`, `N_L(x)` and phases `phi_R(x)`,
-    `phi_L(x)` are stored as backend arrays of shape `lattice.shape`
+    Token distributions `N_RGB(x)`, `N_CMY(x)` and phases `phi_RGB(x)`,
+    `phi_CMY(x)` are stored as backend arrays of shape `lattice.shape`
     indexed `[x, y, z]`. The lattice's `backend` field determines
     whether these are NumPy or CuPy.
 
@@ -106,12 +112,15 @@ class DiscreteCausalSession:
     omega: float
     momentum: tuple[float, float, float] = (0.0, 0.0, 0.0)
 
-    # State arrays -- shape = lattice.shape, dtype = int64 (counts) / float64 (phase).
+    # Lattice state -- shape = lattice.shape; int64 token counts on the two
+    # sublattice components (V_3^+ / V_3^-), float64 per-site U(1) phases.
     # Initialised lazily in __post_init__; do not assume present until after init.
-    N_R: np.ndarray = field(default=None, repr=False)  # type: ignore[assignment]
-    N_L: np.ndarray = field(default=None, repr=False)  # type: ignore[assignment]
-    phi_R: np.ndarray = field(default=None, repr=False)  # type: ignore[assignment]
-    phi_L: np.ndarray = field(default=None, repr=False)  # type: ignore[assignment]
+    # physics: N_RGB/N_CMY IS |psi_R|^2/|psi_L|^2 * n_units (Born-rule density);
+    #          phi_RGB/phi_CMY IS the phase of the Dirac spinor psi_R/psi_L.
+    N_RGB: np.ndarray = field(default=None, repr=False)  # type: ignore[assignment]
+    N_CMY: np.ndarray = field(default=None, repr=False)  # type: ignore[assignment]
+    phi_RGB: np.ndarray = field(default=None, repr=False)  # type: ignore[assignment]
+    phi_CMY: np.ndarray = field(default=None, repr=False)  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
         if self.n_units <= 0:
@@ -124,27 +133,27 @@ class DiscreteCausalSession:
         Backend dispatched on ``self.lattice.backend``: CPU path uses
         ``numpy.zeros``, GPU path uses ``cupy.zeros``.  After
         allocation the session is in the **vacuum** state -- all
-        ``N_R``/``N_L`` counts are zero and ``total_tokens()`` is 0,
+        ``N_RGB``/``N_CMY`` counts are zero and ``total_tokens()`` is 0,
         which deliberately violates A=1.  Populate the session via a
         factory (e.g. :meth:`delta_at`) or by writing the state
         arrays directly before handing it to the scheduler.
 
-        If ``self.momentum`` is nonzero, ``phi_R`` and ``phi_L`` are
+        If ``self.momentum`` is nonzero, ``phi_RGB`` and ``phi_CMY`` are
         initialised to the linear plane-wave phase ``k.x`` rather
         than to zero; that phase persists at empty sites where it
         does not affect the amplitude.
         """
         backend = get_backend(self.lattice.backend)
         shape = self.lattice.shape
-        self.N_R = backend.zeros_int(shape)
-        self.N_L = backend.zeros_int(shape)
-        self.phi_R = backend.zeros(shape)
-        self.phi_L = backend.zeros(shape)
+        self.N_RGB = backend.zeros_int(shape)
+        self.N_CMY = backend.zeros_int(shape)
+        self.phi_RGB = backend.zeros(shape)
+        self.phi_CMY = backend.zeros(shape)
         if any(p != 0.0 for p in self.momentum):
             self._apply_momentum_gradient()
 
     def _apply_momentum_gradient(self) -> None:
-        """Imprint ``phi_R(x) = phi_L(x) += k.x`` from ``self.momentum``.
+        """Imprint ``phi_RGB(x) = phi_CMY(x) += k.x`` from ``self.momentum``.
 
         `k` IS the plane-wave momentum (lattice units, `a = 1`).
         Paper I applies this multiplicatively to ``psi``; the integer
@@ -155,8 +164,8 @@ class DiscreteCausalSession:
         backend = get_backend(self.lattice.backend)
         coords = backend.indices(self.lattice.shape)
         gradient = kx * coords[0] + ky * coords[1] + kz * coords[2]
-        self.phi_R += gradient
-        self.phi_L += gradient
+        self.phi_RGB += gradient
+        self.phi_CMY += gradient
 
     # ------------------------------------------------------------------
     # Factory classmethods -- preferred construction sites for experiments
@@ -184,7 +193,7 @@ class DiscreteCausalSession:
         Returns
         -------
         DiscreteCausalSession
-            A session whose ``N_R[position]`` and ``N_L[position]``
+            A session whose ``N_RGB[position]`` and ``N_CMY[position]``
             sum to ``n_units``, split 50/50 (extra token to R if
             ``n_units`` is odd; arbitrary tiebreaker, not a physical
             claim).  All other sites are empty.  Phases follow the
@@ -204,8 +213,8 @@ class DiscreteCausalSession:
         )
         n_R = (n_units + 1) // 2  # extra token to R when n_units is odd
         n_L = n_units // 2
-        session.N_R[position] = n_R
-        session.N_L[position] = n_L
+        session.N_RGB[position] = n_R
+        session.N_CMY[position] = n_L
         return session
 
     @classmethod
@@ -266,7 +275,7 @@ class DiscreteCausalSession:
         ``min(lattice.shape) / 4`` if that matters for the experiment.
 
         The integer quantisation reuses
-        :class:`~dcl_core.core3d.remainder.BresenhamResidual` for the
+        :class:`~dcl_core.core3d.remainder.TokenResidual` for the
         floor + top-up rebalance, so the same algorithm that conserves
         A=1 tick-to-tick also conserves it at construction time.
         """
@@ -308,22 +317,22 @@ class DiscreteCausalSession:
         # the (possibly nonzero) parity goes to R, matching delta_at.
         n_R = (n_units + 1) // 2
         n_L = n_units // 2
-        N_target_R = envelope * n_R
-        N_target_L = envelope * n_L
+        N_target_RGB = envelope * n_R
+        N_target_CMY = envelope * n_L
 
         # Reuse the residual's floor + top-up algorithm for the
         # integer quantisation.  A fresh residual starts with carry==0
         # so this is a one-shot quantise, not an evolving accumulator.
-        from .remainder import BresenhamResidual
+        from .remainder import TokenResidual
 
-        residual = BresenhamResidual(lattice=lattice)
-        N_R_int, N_L_int = residual.quantise(N_target_R, N_target_L, n_units)
+        residual = TokenResidual(lattice=lattice)
+        N_RGB_int, N_CMY_int = residual.quantise(N_target_RGB, N_target_CMY, n_units)
 
         session = cls(
             lattice=lattice, n_units=n_units, omega=omega, momentum=momentum
         )
-        session.N_R[...] = N_R_int
-        session.N_L[...] = N_L_int
+        session.N_RGB[...] = N_RGB_int
+        session.N_CMY[...] = N_CMY_int
         return session
 
     @classmethod
@@ -332,10 +341,15 @@ class DiscreteCausalSession:
         lattice: BipartiteLattice,
         n_units: int,
         omega: float,
-        N_R: np.ndarray,
-        N_L: np.ndarray,
-        phi_R: np.ndarray | None = None,
-        phi_L: np.ndarray | None = None,
+        N_RGB: np.ndarray | None = None,
+        N_CMY: np.ndarray | None = None,
+        phi_RGB: np.ndarray | None = None,
+        phi_CMY: np.ndarray | None = None,
+        *,
+        N_R: np.ndarray | None = None,  # deprecated alias -> N_RGB
+        N_L: np.ndarray | None = None,  # deprecated alias -> N_CMY
+        phi_R: np.ndarray | None = None,  # deprecated alias -> phi_RGB
+        phi_L: np.ndarray | None = None,  # deprecated alias -> phi_CMY
     ) -> "DiscreteCausalSession":
         """Construct a session from fully-specified state arrays.
 
@@ -343,12 +357,12 @@ class DiscreteCausalSession:
         ----------
         lattice, n_units, omega
             As for the bare constructor.
-        N_R, N_L : int arrays of shape ``lattice.shape``
+        N_RGB, N_CMY : int arrays of shape ``lattice.shape``
             Per-site token counts. Must satisfy
-            ``sum(N_R) + sum(N_L) == n_units`` exactly; this is the
+            ``sum(N_RGB) + sum(N_CMY) == n_units`` exactly; this is the
             A=1 contract the factory enforces at construction time.
-        phi_R, phi_L : float arrays of shape ``lattice.shape``, optional
-            Per-site phases for each chirality. ``None`` (the
+        phi_RGB, phi_CMY : float arrays of shape ``lattice.shape``, optional
+            Per-site phases for each component. ``None`` (the
             default) leaves them at zero.
 
         Returns
@@ -359,39 +373,56 @@ class DiscreteCausalSession:
         Notes
         -----
         This factory does NOT accept a ``momentum`` argument:
-        plane-wave momentum should be baked into ``phi_R`` and
-        ``phi_L`` by the caller (``phi[x,y,z] = kx*x + ky*y + kz*z``)
+        plane-wave momentum should be baked into ``phi_RGB`` and
+        ``phi_CMY`` by the caller (``phi[x,y,z] = kx*x + ky*y + kz*z``)
         so that the factory contract -- "the arrays you pass are
         exactly what the session uses" -- is unambiguous.
+
+        The keyword names ``N_R``/``N_L``/``phi_R``/``phi_L`` are
+        accepted as deprecated lattice-frame aliases.
         """
-        if N_R.shape != lattice.shape:
-            raise ValueError(
-                f"N_R.shape {N_R.shape} != lattice.shape {lattice.shape}"
+        if any(a is not None for a in (N_R, N_L, phi_R, phi_L)):
+            warnings.warn(
+                "from_arrays(N_R=, N_L=, phi_R=, phi_L=) are deprecated "
+                "aliases; use N_RGB / N_CMY / phi_RGB / phi_CMY",
+                DeprecationWarning,
+                stacklevel=2,
             )
-        if N_L.shape != lattice.shape:
+            N_RGB = N_R if N_R is not None else N_RGB
+            N_CMY = N_L if N_L is not None else N_CMY
+            phi_RGB = phi_R if phi_R is not None else phi_RGB
+            phi_CMY = phi_L if phi_L is not None else phi_CMY
+        if N_RGB is None or N_CMY is None:
+            raise TypeError("from_arrays requires N_RGB and N_CMY")
+
+        if N_RGB.shape != lattice.shape:
             raise ValueError(
-                f"N_L.shape {N_L.shape} != lattice.shape {lattice.shape}"
+                f"N_RGB.shape {N_RGB.shape} != lattice.shape {lattice.shape}"
             )
-        total = int(N_R.sum()) + int(N_L.sum())
+        if N_CMY.shape != lattice.shape:
+            raise ValueError(
+                f"N_CMY.shape {N_CMY.shape} != lattice.shape {lattice.shape}"
+            )
+        total = int(N_RGB.sum()) + int(N_CMY.sum())
         if total != n_units:
             raise ValueError(
-                f"sum(N_R) + sum(N_L) = {total}, expected n_units = {n_units}"
+                f"sum(N_RGB) + sum(N_CMY) = {total}, expected n_units = {n_units}"
             )
-        if phi_R is not None and phi_R.shape != lattice.shape:
+        if phi_RGB is not None and phi_RGB.shape != lattice.shape:
             raise ValueError(
-                f"phi_R.shape {phi_R.shape} != lattice.shape {lattice.shape}"
+                f"phi_RGB.shape {phi_RGB.shape} != lattice.shape {lattice.shape}"
             )
-        if phi_L is not None and phi_L.shape != lattice.shape:
+        if phi_CMY is not None and phi_CMY.shape != lattice.shape:
             raise ValueError(
-                f"phi_L.shape {phi_L.shape} != lattice.shape {lattice.shape}"
+                f"phi_CMY.shape {phi_CMY.shape} != lattice.shape {lattice.shape}"
             )
         session = cls(lattice=lattice, n_units=n_units, omega=omega)
-        session.N_R[...] = N_R
-        session.N_L[...] = N_L
-        if phi_R is not None:
-            session.phi_R[...] = phi_R
-        if phi_L is not None:
-            session.phi_L[...] = phi_L
+        session.N_RGB[...] = N_RGB
+        session.N_CMY[...] = N_CMY
+        if phi_RGB is not None:
+            session.phi_RGB[...] = phi_RGB
+        if phi_CMY is not None:
+            session.phi_CMY[...] = phi_CMY
         return session
 
     # ------------------------------------------------------------------
@@ -400,11 +431,59 @@ class DiscreteCausalSession:
 
     @property
     def epsilon_P(self) -> float:
-        """The Planck of probability for this session: 1 / N_units."""
+        """The minimum probability quantum for this session: ``1 / n_units``.
+
+        physics: the "Planck of probability" -- the smallest representable
+        probability mass.  Formal symbol ``delta p_min`` (see
+        ``dcl-mathematics``); exposed under that name as :attr:`dp_min`.
+        """
         return 1.0 / self.n_units
 
+    @property
+    def dp_min(self) -> float:
+        """``delta p_min`` -- alias of :attr:`epsilon_P`, matching the
+        ``dcl-mathematics`` formal symbol."""
+        return self.epsilon_P
+
+    # ---- deprecated chirality-frame aliases for the lattice token state ----
+    # The fields were renamed N_R/N_L/phi_R/phi_L -> N_RGB/N_CMY/phi_RGB/phi_CMY
+    # (lattice frame; see docs/design/03_naming_convention.md).  These
+    # properties keep old callers (and downstream pins) working; in-place
+    # mutation (`session.N_R[...] = x`) and rebinding both flow through.
+    @property
+    def N_R(self) -> np.ndarray:  # deprecated alias -> N_RGB
+        return self.N_RGB
+
+    @N_R.setter
+    def N_R(self, value: np.ndarray) -> None:
+        self.N_RGB = value
+
+    @property
+    def N_L(self) -> np.ndarray:  # deprecated alias -> N_CMY
+        return self.N_CMY
+
+    @N_L.setter
+    def N_L(self, value: np.ndarray) -> None:
+        self.N_CMY = value
+
+    @property
+    def phi_R(self) -> np.ndarray:  # deprecated alias -> phi_RGB
+        return self.phi_RGB
+
+    @phi_R.setter
+    def phi_R(self, value: np.ndarray) -> None:
+        self.phi_RGB = value
+
+    @property
+    def phi_L(self) -> np.ndarray:  # deprecated alias -> phi_CMY
+        return self.phi_CMY
+
+    @phi_L.setter
+    def phi_L(self, value: np.ndarray) -> None:
+        self.phi_CMY = value
+
     def total_tokens(self) -> int:
-        """Return ``sum(N_R) + sum(N_L)``.
+        """Return ``sum(N_RGB) + sum(N_CMY)``.
 
         For a populated, A=1-conserving session this equals
         ``n_units`` exactly.  A bare-constructed (vacuum) session
@@ -416,7 +495,7 @@ class DiscreteCausalSession:
         "give me the number now."
         """
         backend = get_backend(self.lattice.backend)
-        return int(backend.sum_all(self.N_R) + backend.sum_all(self.N_L))
+        return int(backend.sum_all(self.N_RGB) + backend.sum_all(self.N_CMY))
 
     def assert_unity(self) -> None:
         """Raise if the session has drifted away from A=1.
@@ -434,23 +513,39 @@ class DiscreteCausalSession:
                 f"A=1 violated: total_tokens={total}, expected {self.n_units}"
             )
 
-    def amplitude(self, chirality: Chirality) -> np.ndarray:
-        """Return the implicit complex amplitude psi_{R|L}(x) for inspection.
+    def amplitude(
+        self, component: Component | None = None, *, chirality: Component | None = None
+    ) -> np.ndarray:
+        """Return the derived complex amplitude of a sublattice component.
 
-        Computed as ``sqrt(N(x) / n_units) * exp(i * phi(x))``.  This
-        is a freshly-allocated snapshot, not a view -- callers can
-        mutate the result without affecting session state, and the
-        session never reads back from it.  Provided for introspection
-        / plotting only; the session's evolution operates on integer
-        ``N`` and continuous ``phi`` directly, never on the derived
-        complex field.
+        ``component`` selects the RGB or CMY sublattice component (the
+        lattice frame); "R"/"L" are accepted physics-frame aliases. The
+        old keyword ``chirality=`` is accepted as a deprecated alias.
+
+        physics: the returned field IS the Dirac spinor component
+        ``psi = sqrt(N(x) / n_units) * exp(i * phi(x))`` -- the physics
+        reading of the lattice state ``(N, phi)``.  It is a derived,
+        freshly-allocated snapshot (not a view): the engine evolves the
+        integer ``N`` and continuous ``phi`` directly and never reads
+        back from this complex field.  Provided for introspection /
+        plotting only.
         """
-        if chirality == "R":
-            N, phi = self.N_R, self.phi_R
-        elif chirality == "L":
-            N, phi = self.N_L, self.phi_L
+        if chirality is not None:
+            warnings.warn(
+                "amplitude(chirality=) is a deprecated alias; use component=",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            component = chirality if component is None else component
+        if component in ("RGB", "R"):
+            N, phi = self.N_RGB, self.phi_RGB
+        elif component in ("CMY", "L"):
+            N, phi = self.N_CMY, self.phi_CMY
         else:
-            raise ValueError(f"chirality must be 'R' or 'L', got {chirality!r}")
+            raise ValueError(
+                f"component must be 'RGB'/'CMY' (or alias 'R'/'L'), "
+                f"got {component!r}"
+            )
         backend = get_backend(self.lattice.backend)
         # psi(x) IS sqrt(N(x) / n_units) * exp(i * phi(x)).  The division
         # promotes int64 -> float64; the `1j * phi` promotes float64 ->

@@ -43,10 +43,10 @@ def test_register_returns_increasing_indices(
 def test_register_allocates_one_residual_per_session(
     small_shape: tuple[int, int, int],
 ) -> None:
-    """Each registered session gets its own `BresenhamResidual` in `residuals`."""
+    """Each registered session gets its own `TokenResidual` in `residuals`."""
     from dcl_core.core3d import (
         BipartiteLattice,
-        BresenhamResidual,
+        TokenResidual,
         DiscreteCausalSession,
         HopOperator,
         TickScheduler,
@@ -61,7 +61,7 @@ def test_register_allocates_one_residual_per_session(
     idx = scheduler.register(session)
 
     assert idx in scheduler.residuals
-    assert isinstance(scheduler.residuals[idx], BresenhamResidual)
+    assert isinstance(scheduler.residuals[idx], TokenResidual)
     # The residual lives on the same lattice as the scheduler.
     assert scheduler.residuals[idx].lattice is lattice
 

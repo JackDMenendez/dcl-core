@@ -60,8 +60,8 @@ def test_token_distribution_approaches_continuous_amplitude(n_units: int) -> Non
     g /= g.sum()
 
     # Integer-token density.  Total density is the marginal
-    # `(N_R + N_L) / n_units`; this IS what |psi|^2 should be.
-    density = (session.N_R + session.N_L).astype(np.float64) / n_units
+    # `(N_RGB + N_CMY) / n_units`; this IS what |psi|^2 should be.
+    density = (session.N_RGB + session.N_CMY).astype(np.float64) / n_units
 
     l2_error = float(np.sqrt(np.sum((density - g) ** 2)))
     threshold = 10.0 * np.sqrt(n_sites) / n_units
