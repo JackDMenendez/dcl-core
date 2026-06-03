@@ -21,13 +21,15 @@ CPU (NumPy) and GPU (CuPy) backends are addressable through a single
 API surface; the backend is selected at
 :class:`BipartiteLattice`-construction time.
 
-State of implementation (v0.1.0-dev)
-------------------------------------
-All implementations in this submodule are deliberate stubs and
-raise :class:`NotImplementedError`.  The architectural decisions
-(interfaces, public API, naming, documentation conventions) are
-deliberately separated from the implementation work; see
-``CLAUDE.md``'s ``CURRENT STATUS`` for the implementation roadmap.
+State of implementation (v0.1.0)
+--------------------------------
+All five public operators are implemented and pass their unit
+suites under ``tests/core3d/`` (lattice, session, hop, remainder,
+scheduler, clifford, continuum-limit).  The remaining v1.0 work is
+the cross-submodule convergence layer in
+``tests/test_cross_validation.py`` (``core`` <-> ``core3d`` in the
+``n_units -> infinity`` limit); see ``CLAUDE.md``'s ``CURRENT
+STATUS`` for the v1.0 roadmap.
 
 Public API contract
 -------------------
