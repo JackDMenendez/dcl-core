@@ -3,7 +3,9 @@
 # Build: docker build -t my-project-dev:latest .
 # Run:   run-container.sh python scripts/run_experiment.py
 
-ARG PYTHON_VERSION=3.12
+# NOTE: pinned to 3.14 to match the release venv (Python 3.14.5); the
+# generator defaults this to 3.12.  Override with --build-arg if needed.
+ARG PYTHON_VERSION=3.14
 FROM python:${PYTHON_VERSION}-slim
 
 WORKDIR /workspace

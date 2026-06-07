@@ -1,0 +1,25 @@
+Zenodo "Related identifiers" for the dcl_core v0.2.0 deposit.
+Enter each under Upload > Related/alternate identifiers, with the
+relation shown.
+
+isNewVersionOf       10.5281/zenodo.20350952
+    (dcl_core v0.1.0 -- the immediately prior release of this same
+     software.  Zenodo links versions automatically when depositing
+     into the same record/concept DOI; this line records the
+     relation explicitly for portability.)
+
+isSupplementTo       10.5281/zenodo.20078529
+    (Paper I -- "Geometry First".  dcl_core is the software
+     substrate underlying the framework that Paper I introduces;
+     dcl_core.core is a verbatim port of Paper I's engine.)
+
+references           10.5281/zenodo.20292158
+    (Paper II -- "Geometry Forces Physics".  Source of the
+     71-dimensional per-site automorphism algebra; its 51
+     unaccounted-for generators motivate dcl_core's complex-carry
+     hypothesis for TokenResidual.)
+
+isReferencedBy       (pending)  Paper III -- "Tidal Ionization"
+    (The first downstream consumer; pins dcl_core via a git tag.
+     Add Paper III's DOI here once it is deposited and the relation
+     becomes concrete.)

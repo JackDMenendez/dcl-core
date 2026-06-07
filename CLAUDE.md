@@ -13,7 +13,43 @@ the **CURRENT STATUS** block at the top up to date.
 
 ---
 
-## CURRENT STATUS (2026-06-02) -- v0.1.0, core3d modules landed; v1.0 gap is cross-validation only
+## CURRENT STATUS (2026-06-07) -- v0.2.0 release prep underway (cutting v0.2.0, NOT v1.0.0)
+
+**Release decision (2026-06-07).** The next cut is **v0.2.0**, not
+v1.0.0.  The cross-validation gap that this file previously called
+"the entire remaining v1.0 gap" is closed (all 4 tests pass), but the
+user chose to keep the pre-1.0 "API unstable" signal for one more
+cycle rather than freeze at 1.0 -- GPU kernels and inter-session
+coupling are still ahead and may move the public surface.  The v1.0
+API freeze is deferred to a later cut.
+
+**v0.2.0 prep done so far (uncommitted working tree):**
+- `_version.py` bumped 0.1.0 -> 0.2.0; `CITATION.cff` version +
+  date-released bumped (DOI still v0.1.0's, marked `TODO(release)` to
+  back-fill).
+- Release notes drafted: `release_notes/v0.2.0.md`,
+  `v0.2.0-release-message.md`, `v0.2.0-zenodo-description.txt`, plus
+  protocol-v2 `zenodo_references.txt` + `zenodo_related_works.txt`.
+- Stale top-level docstring in `src/dcl_core/__init__.py` fixed
+  (N_R/N_L/Bresenham -> N_RGB/N_CMY/TokenResidual).
+- api-stability-reviewer confirmed 0.2.0 (MINOR) is the correct bump;
+  every renamed symbol has a working shim.
+
+**v0.2.0 remaining (Claude-owned), then Zenodo handoff:**
+- Run wcde regen scripts (protocol steps 9-10): refresh
+  `.vscode/extensions.txt` + `.dev-shell/` Dockerfile/requirements.
+- Commit prep (include `docs/data_deposit_and_provenance.md` +
+  `.gitignore` + `release_notes/README.md`; HOLD
+  `notes/phase_inertia_amplitude.*` -- unrelated).
+- HANDOFF: user deposits on Zenodo, supplies the v0.2.0 DOI; Claude
+  back-fills DOI into CITATION.cff + release notes, commits, tags
+  `v0.2.0`, pushes; user drafts/publishes the GitHub Release.
+- After deposit: bump-and-rebuild -- update Paper~III's `dcl_core`
+  pin to `@v0.2.0`.
+
+---
+
+## (HISTORICAL) v1.0-framed status (2026-06-02) -- superseded by the v0.2.0 decision above
 
 Repository created on 2026-05-16 from the user's `dcl-core-template`
 (a Python-package-shaped GitHub template, separate from the

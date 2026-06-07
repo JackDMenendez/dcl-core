@@ -64,6 +64,23 @@ data/*.err
 *.log
 !data/*.log
 
+# Heavy generated data artefacts go to a Zenodo dataset record, never
+# into git history (see docs/data_deposit_and_provenance.md).  dcl-core
+# runs no experiments; this block is defensive so a stray volume / movie
+# / mesh dropped here cannot be committed by accident.  Manifests, small
+# reduced summaries, and figures ARE committed (allow-rules below).
+data/**/*.npy
+data/**/*.npz
+*.mp4
+*.glb
+*.ply
+*.obj
+*.vti
+!data/**/*.manifest.json
+!data/**/*.summary.npy
+!data/**/*.summary.npz
+!**/figures/**
+
 # Stage / promote outputs (per-version snapshots if used)
 stage/
 .stage/

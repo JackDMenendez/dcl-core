@@ -1,0 +1,91 @@
+dcl_core is a Python library implementing the A=1 Discrete Causal
+Lattice (DCL) framework, the substrate underlying the "Geometry First"
+research series.  v0.2.0 closes the framework's cross-validation gap
+and lands the core3d two-frame naming convention.  The package
+continues to ship two engines under a single import, intentionally
+side-by-side, so downstream research can compare them directly.
+
+The first engine, dcl_core.core, is a verbatim port of the
+continuous-amplitude formulation from Paper I (Menendez, 2026,
+Zenodo: 10.5281/zenodo.20078529).  Sessions carry complex Dirac
+spinor amplitudes (psi_R on the RGB sublattice, psi_L on CMY),
+evolve under a bipartite tick rule, and enforce A=1 through a
+post-hop float-tolerance renormalisation.  This engine is frozen and
+untouched in v0.2.0; it reproduces Paper I's dynamics bit-for-bit and
+serves as the continuous-baseline reference.
+
+The second engine, dcl_core.core3d, is the active design point: an
+integer-token reimplementation that enforces A=1 as an exact integer
+identity.  A session is a fixed budget of N indistinguishable
+probability tokens distributed across an octahedral lattice
+(N_RGB(x), N_CMY(x) as int64 fields, phi_RGB(x), phi_CMY(x) as
+continuous phases); the analytical Dirac hop produces fractional new
+amplitudes which the TokenResidual operator converts to integer
+counts via a floor + global top-up rebalance, persisting fractional
+bits between ticks.  The result is sum_x (N_RGB(x) + N_CMY(x)) ==
+n_units at every tick, with no float tolerance.
+
+What is new in v0.2.0:
+
+1. The cross-validation layer is complete.  All four
+   tests/test_cross_validation.py tests now pass (v0.1.0 shipped them
+   as skipped).  This was the stated v1.0 gap.  Each test was
+   respec'd to the regime where the discrete and continuous engines
+   are actually comparable: at fixed lattice spacing the two pin
+   different observables and converge only in the double limit
+   (a -> 0 and N -> infinity), so the tests assert each engine's own
+   A=1 invariant plus a fixed-lattice-divergence tripwire rather than
+   a spurious shared value.
+
+2. The core3d submodule adopts a two-frame naming convention (the
+   name says what the lattice object IS; a "# physics:" comment names
+   the existing-physics correspondence).  Public symbols are renamed
+   accordingly -- BresenhamResidual -> TokenResidual; session state
+   N_R/N_L/phi_R/phi_L -> N_RGB/N_CMY/phi_RGB/phi_CMY;
+   amplitude(chirality=) -> amplitude(component=); new
+   BipartiteLattice.coordination and an epsilon_P -> dp_min alias.
+   Every old name still resolves through a backward-compatible
+   deprecation shim, so existing callers do not break.
+
+3. Reproducibility and provenance scaffolding: a pinned-dependency
+   Dockerfile, a tracked editor-extension snapshot, and a data-
+   deposit/provenance policy (per-experiment manifests; one Zenodo
+   dataset record per paper; heavy data deposited rather than bundled
+   into the software DOI).
+
+This is cut as v0.2.0, not v1.0.0: the public API stays under the
+pre-1.0 "expect breakage" signal for one more cycle, since the GPU
+kernels and inter-session coupling still ahead may move the surface.
+
+Tests at release: 232 passed, 26 xfailed, 0 skipped (the 26 xfails
+are pre-existing Paper I drift inherited verbatim with the port).
+
+What is deliberately NOT in v0.2.0 (still ahead):
+  - GPU backend kernels.  The CuPy allocators are wired, but the
+    RawKernel bodies in backends/gpu.py are stubs.
+  - Pairwise multi-session interactions (Coulomb, gauge phase,
+    emission pairs).  The richer two-session Arnold-tongue needs
+    these.
+  - Complex TokenResidual carry.  v0.2.0 ships a real-valued carry as
+    a known-incomplete placeholder; the hypothesis that the carry
+    should be complex (representing virtual-particle amplitude tied to
+    the 51 unaccounted-for generators in Paper II's per-site
+    automorphism algebra) is documented in
+    notes/bresenham_residual_design.md, with the determination
+    expected downstream in Paper III's min-delta-p experiments.
+
+Install:
+    pip install "git+https://github.com/JackDMenendez/dcl-core@v0.2.0"
+
+Or, for symbolic verification (Clifford algebra) or GPU backend:
+    pip install "dcl_core[sympy] @ git+https://github.com/JackDMenendez/dcl-core@v0.2.0"
+    pip install "dcl_core[gpu]   @ git+https://github.com/JackDMenendez/dcl-core@v0.2.0"
+
+License: MIT (source), CC BY 4.0 (documentation).
+
+Citation: see CITATION.cff in the repository.  This release's DOI is
+10.5281/zenodo.20586191.  Downstream papers in the A=1 DCL series that
+depend on dcl_core pin to this DOI for reproducibility.
+
+Repository: https://github.com/JackDMenendez/dcl-core
+Project homepage: https://geometryinducedphysics.org/

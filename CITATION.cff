@@ -8,9 +8,9 @@ authors:
     given-names: Jack
     orcid: "https://orcid.org/0009-0003-1166-307X"
     affiliation: "Independent Scholar (Eugene, OR)"
-version: v0.1.0
-date-released: 2026-05-22
-doi: 10.5281/zenodo.20350952
+version: v0.2.0
+date-released: 2026-06-07
+doi: 10.5281/zenodo.20586191
 repository-code: "https://github.com/JackDMenendez/dcl-core"
 license: MIT
 keywords:

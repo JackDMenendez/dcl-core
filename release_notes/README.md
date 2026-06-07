@@ -98,6 +98,15 @@ no paper, so steps 8 and 14 are skipped here).
 After step 23, walk downstream consumers per the *Downstream paper
 coordination* section below.
 
+> **Data deposits (paper repos, not dcl-core).** dcl-core is
+> software-only -- step 15 uploads the wheel/sdist/small reference data
+> to the *software* record.  Heavy experiment artefacts (volumes, frame
+> stacks, movies, meshes) are NOT bundled here; each consumer paper
+> deposits them as **one Zenodo `dataset` record per paper** (per-
+> experiment provenance manifests inside), `isDerivedFrom` the released
+> dcl-core software DOI.  Full convention:
+> [`docs/data_deposit_and_provenance.md`](../docs/data_deposit_and_provenance.md).
+
 ## Helper scripts provided by wcde
 
 Steps 9 and 10 invoke scripts that live in [wcde](../../wcde/)

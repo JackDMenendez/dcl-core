@@ -1,0 +1,63 @@
+[1] Menendez, J. (2026).  Geometry First: Quantum Mechanics,
+    Gravity, and the Origin of the Standard Model from a Single
+    Conservation Law.  Zenodo.  doi:10.5281/zenodo.20078529.
+    (Paper I of the A=1 Discrete Causal Lattice series; the
+    continuous-amplitude formulation that dcl_core.core ports
+    verbatim and dcl_core.core3d re-derives with integer tokens.)
+
+[2] Menendez, J. (2026).  Geometry Forces Physics: A Lie-Algebra
+    Derivation of the Standard Model Gauge Group from a Single
+    Conservation Law.  Zenodo.  doi:10.5281/zenodo.20292158.
+    (Paper II of the A=1 Discrete Causal Lattice series.
+    Establishes the 71-dimensional per-site automorphism algebra
+    and identifies 20 generators with Standard-Model degrees of
+    freedom; the remaining 51 are the open structure referenced
+    in dcl_core's complex-carry hypothesis for TokenResidual,
+    see notes/bresenham_residual_design.md.)
+
+[3] Bresenham, J. E. (1965).  Algorithm for computer control of a
+    digital plotter.  IBM Systems Journal, 4(1), 25-30.
+    doi:10.1147/sj.41.0025.
+    (Namesake of the residual accumulator -- now TokenResidual,
+    formerly BresenhamResidual.  The error-diffusion accumulator
+    pattern that converts fractional pixel positions to integer
+    pixel grids is adapted here to convert fractional token-
+    amplitude targets into integer token counts while preserving
+    the total exactly.)
+
+[4] Arnold, V. I. (1989).  Mathematical Methods of Classical
+    Mechanics (2nd ed.).  Graduate Texts in Mathematics 60,
+    Springer-Verlag.  doi:10.1007/978-1-4757-2063-1.
+    (Source for the Arnold-tongue phenomenon used as one of the
+    cross-engine comparison observables; the single-session
+    orbital-resonance form is exercised by
+    test_arnold_tongue_locations_agree.)
+
+[5] Harris, C. R., Millman, K. J., van der Walt, S. J., et al.
+    (2020).  Array programming with NumPy.  Nature, 585, 357-362.
+    doi:10.1038/s41586-020-2649-2.
+    (Primary array library; both engines run on NumPy by default.)
+
+[6] Virtanen, P., Gommers, R., Oliphant, T. E., et al. (2020).
+    SciPy 1.0: fundamental algorithms for scientific computing in
+    Python.  Nature Methods, 17, 261-272.
+    doi:10.1038/s41592-019-0686-3.
+    (Required scientific-computing dependency.)
+
+[7] Meurer, A., Smith, C. P., Paprocki, M., et al. (2017).  SymPy:
+    symbolic computing in Python.  PeerJ Computer Science, 3:e103.
+    doi:10.7717/peerj-cs.103.
+    (Optional dependency; the dcl_core.core3d.clifford submodule
+    builds the Dirac gamma matrices symbolically with SymPy so
+    the Clifford anticommutation relations can be checked as
+    exact algebraic equalities rather than numerical
+    approximations.)
+
+[8] Okuta, R., Unno, Y., Nishino, D., Hido, S., & Loomis, C.
+    (2017).  CuPy: a NumPy-compatible library for NVIDIA GPU
+    calculations.  Proceedings of Workshop on Machine Learning
+    Systems (LearningSys) at NeurIPS 2017.
+    https://learningsys.org/nips17/assets/papers/paper_16.pdf.
+    (Optional [gpu] dependency; the GPU backend in
+    dcl_core.core3d.backends.gpu uses CuPy allocators.  Kernel
+    bodies remain stubbed and are scheduled for a later release.)

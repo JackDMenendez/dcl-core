@@ -8,10 +8,10 @@ The package exposes two submodules with complementary roles:
   compatible API for existing experiments; A=1 is enforced via
   float-tolerance renormalisation (``enforce_unity_spinor``).
 - :mod:`dcl_core.core3d` -- the new design with integer-token
-  probability accounting (``N_R`` / ``N_L`` integer counts +
-  ``phi_R`` / ``phi_L`` phase fields), Bresenham-style fractional
-  residual, and CPU/GPU backend split.  A=1 is an exact integer
-  identity: ``sum_x (N_R + N_L) == n_units``.
+  probability accounting (``N_RGB`` / ``N_CMY`` integer counts +
+  ``phi_RGB`` / ``phi_CMY`` phase fields), a ``TokenResidual``
+  fractional-bit carry, and CPU/GPU backend split.  A=1 is an exact
+  integer identity: ``sum_x (N_RGB + N_CMY) == n_units``.
 
 **No top-level shortcuts are re-exported.**  Callers pick their
 submodule explicitly -- e.g.
