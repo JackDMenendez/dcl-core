@@ -13,39 +13,48 @@ the **CURRENT STATUS** block at the top up to date.
 
 ---
 
-## CURRENT STATUS (2026-06-07) -- v0.2.0 release prep underway (cutting v0.2.0, NOT v1.0.0)
+## CURRENT STATUS (2026-06-07) -- v0.2.0 RELEASED; next cut is v1.0.0 (gated on dcl-delta-p-min)
 
-**Release decision (2026-06-07).** The next cut is **v0.2.0**, not
-v1.0.0.  The cross-validation gap that this file previously called
-"the entire remaining v1.0 gap" is closed (all 4 tests pass), but the
-user chose to keep the pre-1.0 "API unstable" signal for one more
-cycle rather than freeze at 1.0 -- GPU kernels and inter-session
-coupling are still ahead and may move the public surface.  The v1.0
-API freeze is deferred to a later cut.
+**v0.2.0 is released and complete (2026-06-07).** Full release done:
+- Commit `2c866a8` on `main`, tag `v0.2.0` pushed, GitHub Release
+  published.
+- Zenodo DOI **10.5281/zenodo.20586191** (minted by the user; back-
+  filled into `CITATION.cff` + the three `release_notes/v0.2.0*`
+  files).  sdist+wheel built into `dist/` and uploaded to Zenodo by
+  the user.
+- Content: all 4 `test_cross_validation.py` tests pass (were skipped);
+  suite `232 passed, 26 xfailed, 0 skipped`.  core3d two-frame naming
+  retrofit (renames all shimmed -- api-stability-reviewer confirmed
+  0.2.0/MINOR is correct).  Data-deposit policy doc + `.gitignore`
+  rules; `.dev-shell/` requirements refreshed, Dockerfile pinned to
+  Python 3.14.
+- HELD back from the commit (still untracked, intentional):
+  `notes/phase_inertia_amplitude.{png,py}` -- unrelated to the release.
 
-**v0.2.0 prep done so far (uncommitted working tree):**
-- `_version.py` bumped 0.1.0 -> 0.2.0; `CITATION.cff` version +
-  date-released bumped (DOI still v0.1.0's, marked `TODO(release)` to
-  back-fill).
-- Release notes drafted: `release_notes/v0.2.0.md`,
-  `v0.2.0-release-message.md`, `v0.2.0-zenodo-description.txt`, plus
-  protocol-v2 `zenodo_references.txt` + `zenodo_related_works.txt`.
-- Stale top-level docstring in `src/dcl_core/__init__.py` fixed
-  (N_R/N_L/Bresenham -> N_RGB/N_CMY/TokenResidual).
-- api-stability-reviewer confirmed 0.2.0 (MINOR) is the correct bump;
-  every renamed symbol has a working shim.
+**Release decision that stands:** cut was **v0.2.0, NOT v1.0.0** --
+keep the pre-1.0 "API unstable" signal for one more cycle.  The v1.0
+API freeze is **gated on the `dcl-delta-p-min` study finishing** and
+**co-releases with Paper III**.  See memory [[v1-release-gating]].
+Do NOT cut v1.0.0 before delta-p-min is done.
 
-**v0.2.0 remaining (Claude-owned), then Zenodo handoff:**
-- Run wcde regen scripts (protocol steps 9-10): refresh
-  `.vscode/extensions.txt` + `.dev-shell/` Dockerfile/requirements.
-- Commit prep (include `docs/data_deposit_and_provenance.md` +
-  `.gitignore` + `release_notes/README.md`; HOLD
-  `notes/phase_inertia_amplitude.*` -- unrelated).
-- HANDOFF: user deposits on Zenodo, supplies the v0.2.0 DOI; Claude
-  back-fills DOI into CITATION.cff + release notes, commits, tags
-  `v0.2.0`, pushes; user drafts/publishes the GitHub Release.
-- After deposit: bump-and-rebuild -- update Paper~III's `dcl_core`
-  pin to `@v0.2.0`.
+**Next actions (when v1.0.0 time comes, not before):**
+- Finish the `dcl-delta-p-min` study (separate repo).
+- Then cut v1.0.0 (the API freeze: new core3d names canonical, drop
+  or keep-deprecating the shims) co-released with Paper III, and run
+  the bump-and-rebuild: update Paper~III's `dcl_core` pin to the
+  v1.0.0 tag.
+- NOT yet shipped (still ahead, may move the API -> why not frozen):
+  GPU CuPy kernels, pairwise inter-session coupling, complex
+  `TokenResidual` carry.
+
+**New sibling repo created this session (2026-06-07):**
+`dcl-lattice-viewer` (`C:\dev\dcl-lattice-viewer`,
+github.com/JackDMenendez/dcl-lattice-viewer, tag `v0.1.0`).  Downstream
+*visualization* tool: reads dcl_core's `.npy` field contract
+(`N_RGB`/`N_CMY` + optional `phi_*`) and emits a `.glb` + interactive
+three.js `.html`.  **No Zenodo / no DOI for this tool** (user decision)
+-- it is a convenience tool, installed by git pin only.  Details in
+memory [[npy-visualization-pipeline]].
 
 ---
 
