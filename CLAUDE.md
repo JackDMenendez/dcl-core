@@ -31,14 +31,16 @@ purely opt-in, no re-export added/removed, pre-1.0.  Exists to unblock
   passed, 26 xfailed, 0 skipped**.
 - Diagnostic `experiments/exp_03_prob_floor_diag.py` (A=1 holds ~1e-16
   across the floor sweep).  `docs/reference/api.md` documents it.
-- `_version.py` -> 0.2.1; `CITATION.cff` version+date bumped (DOI
-  `TODO(release)` -- back-fill only if a v0.2.1 Zenodo deposit is cut;
-  otherwise consumed via the git tag).  sdist+wheel built into `dist/`.
+- `_version.py` -> 0.2.1; `CITATION.cff` version+date+DOI bumped (DOI
+  `10.5281/zenodo.20615410`, deposited 2026-06-09).  sdist+wheel in
+  `dist/`.
 - Release notes: `release_notes/v0.2.1.md` + `-release-message.md`.
 - `dcl-delta-p-min` coordination docs repointed v0.2.0 -> v0.2.1.
 
 **v0.2.1 remaining:**
-- DECISION PENDING: Zenodo deposit for a v0.2.1 DOI, or git-tag-only?
+- Zenodo: DEPOSITED (DOI `10.5281/zenodo.20615410`, back-filled into
+  CITATION + release notes; tag advanced to include it).  GitHub
+  Release for `v0.2.1` is the user's to publish (gh not authed here).
 - Then: bump `dcl-delta-p-min`'s `virtual-env-requirements.txt` pin to
   `@v0.2.1` and reactivate its `exp_09` `core` column (Phase 2 work,
   in that repo).

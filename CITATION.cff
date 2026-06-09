@@ -10,7 +10,7 @@ authors:
     affiliation: "Independent Scholar (Eugene, OR)"
 version: v0.2.1
 date-released: 2026-06-09
-doi: 10.5281/zenodo.20586191  # TODO(release): back-fill v0.2.1 version DOI if deposited; else this stays v0.2.0's concept-version DOI
+doi: 10.5281/zenodo.20615410
 repository-code: "https://github.com/JackDMenendez/dcl-core"
 license: MIT
 keywords:
