@@ -13,48 +13,48 @@ the **CURRENT STATUS** block at the top up to date.
 
 ---
 
-## CURRENT STATUS (2026-06-07) -- v0.2.0 RELEASED; next cut is v1.0.0 (gated on dcl-delta-p-min)
+## CURRENT STATUS (2026-06-09) -- v0.2.1 released (`prob_floor`); v0.2.0 released; v1.0.0 still gated on dcl-delta-p-min
 
-**v0.2.0 is released and complete (2026-06-07).** Full release done:
-- Commit `2c866a8` on `main`, tag `v0.2.0` pushed, GitHub Release
-  published.
-- Zenodo DOI **10.5281/zenodo.20586191** (minted by the user; back-
-  filled into `CITATION.cff` + the three `release_notes/v0.2.0*`
-  files).  sdist+wheel built into `dist/` and uploaded to Zenodo by
-  the user.
-- Content: all 4 `test_cross_validation.py` tests pass (were skipped);
-  suite `232 passed, 26 xfailed, 0 skipped`.  core3d two-frame naming
-  retrofit (renames all shimmed -- api-stability-reviewer confirmed
-  0.2.0/MINOR is correct).  Data-deposit policy doc + `.gitignore`
-  rules; `.dev-shell/` requirements refreshed, Dockerfile pinned to
-  Python 3.14.
-- HELD back from the commit (still untracked, intentional):
-  `notes/phase_inertia_amplitude.{png,py}` -- unrelated to the release.
+**v0.2.0 RELEASED 2026-06-07** -- DOI `10.5281/zenodo.20586191`, tag
+`v0.2.0`, GitHub Release published.  Content: cross-validation layer
+(all 4 tests) + core3d two-frame naming retrofit.
 
-**Release decision that stands:** cut was **v0.2.0, NOT v1.0.0** --
-keep the pre-1.0 "API unstable" signal for one more cycle.  The v1.0
-API freeze is **gated on the `dcl-delta-p-min` study finishing** and
-**co-releases with Paper III**.  See memory [[v1-release-gating]].
-Do NOT cut v1.0.0 before delta-p-min is done.
+**v0.2.1 RELEASED 2026-06-09 -- the `prob_floor` release.**  A single
+additive, opt-in feature: `prob_floor` on `dcl_core.core.CausalSession`
+(the continuous-engine `delta_p_min` knob; per-site Born-density floor,
+phase-preserving, A=1-preserving, applied end-of-tick; `None` is
+bit-for-bit the v0.2.0 engine).  Released as **PATCH** (not MINOR):
+purely opt-in, no re-export added/removed, pre-1.0.  Exists to unblock
+`dcl-delta-p-min`'s `exp_09` `core` column with a pinnable `@v0.2.1`.
+- Implemented in `core/CausalSession.py` (`_apply_prob_floor`); tests in
+  `tests/test_prob_floor_a1_consistency.py` (20 tests); suite **252
+  passed, 26 xfailed, 0 skipped**.
+- Diagnostic `experiments/exp_03_prob_floor_diag.py` (A=1 holds ~1e-16
+  across the floor sweep).  `docs/reference/api.md` documents it.
+- `_version.py` -> 0.2.1; `CITATION.cff` version+date bumped (DOI
+  `TODO(release)` -- back-fill only if a v0.2.1 Zenodo deposit is cut;
+  otherwise consumed via the git tag).  sdist+wheel built into `dist/`.
+- Release notes: `release_notes/v0.2.1.md` + `-release-message.md`.
+- `dcl-delta-p-min` coordination docs repointed v0.2.0 -> v0.2.1.
 
-**Next actions (when v1.0.0 time comes, not before):**
-- Finish the `dcl-delta-p-min` study (separate repo).
-- Then cut v1.0.0 (the API freeze: new core3d names canonical, drop
-  or keep-deprecating the shims) co-released with Paper III, and run
-  the bump-and-rebuild: update Paper~III's `dcl_core` pin to the
-  v1.0.0 tag.
-- NOT yet shipped (still ahead, may move the API -> why not frozen):
-  GPU CuPy kernels, pairwise inter-session coupling, complex
-  `TokenResidual` carry.
+**v0.2.1 remaining:**
+- DECISION PENDING: Zenodo deposit for a v0.2.1 DOI, or git-tag-only?
+- Then: bump `dcl-delta-p-min`'s `virtual-env-requirements.txt` pin to
+  `@v0.2.1` and reactivate its `exp_09` `core` column (Phase 2 work,
+  in that repo).
 
-**New sibling repo created this session (2026-06-07):**
-`dcl-lattice-viewer` (`C:\dev\dcl-lattice-viewer`,
-github.com/JackDMenendez/dcl-lattice-viewer, tag `v0.1.0`).  Downstream
-*visualization* tool: reads dcl_core's `.npy` field contract
-(`N_RGB`/`N_CMY` + optional `phi_*`) and emits a `.glb` + interactive
-three.js `.html`.  **No Zenodo / no DOI for this tool** (user decision)
--- it is a convenience tool, installed by git pin only.  Details in
-memory [[npy-visualization-pipeline]].
+**v1.0.0 is still the eventual cut** -- the formal API freeze, gated on
+`dcl-delta-p-min` finishing, co-released with Paper III (see memory
+[[v1-release-gating]]).  GPU kernels, inter-session coupling, and the
+complex `TokenResidual` carry are still ahead and may move the surface.
+
+**Sibling tool (2026-06-07):** `dcl-lattice-viewer`
+(`C:\dev\dcl-lattice-viewer`, github.com/JackDMenendez/dcl-lattice-viewer,
+tag `v0.1.0`).  Downstream *visualization* tool: reads dcl_core's `.npy`
+field contract (`N_RGB`/`N_CMY` + optional `phi_*`) and emits a `.glb` +
+interactive three.js `.html`.  **No Zenodo / no DOI** (user decision) --
+convenience tool, git-pin install only.  See memory
+[[npy-visualization-pipeline]].
 
 ---
 
@@ -267,9 +267,15 @@ choice of engine is explicit at every import site.
 | `src/dcl_core/core/PhaseOscillator.py` | Phase-clock primitive |
 | `src/dcl_core/core/UnityConstraint.py` | Float-tolerance A=1 enforcement |
 
-Verbatim port of Paper~I's `src/core/`; the six module files are
-unmodified, only `core/__init__.py` is new (re-exports the Paper~I
-public surface).  Ready to use immediately.
+Near-verbatim port of Paper~I's `src/core/`; `core/__init__.py` is
+new (re-exports the Paper~I public surface).  The port is no longer
+byte-for-byte: `CausalSession` carries one **additive, backward-
+compatible** extension -- the keyword-only `prob_floor` parameter (the
+continuous-engine `delta_p_min` knob required by `dcl-delta-p-min`'s
+4-cell grid; `prob_floor=None` is bit-for-bit the original engine).
+See `docs/reference/api.md` and `tests/test_prob_floor_a1_consistency.py`.
+The naming-convention exemption still holds; only this one sanctioned
+feature addition departs from upstream.
 
 ### `dcl_core.core3d` -- integer-token engine (new design)
 

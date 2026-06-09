@@ -63,11 +63,35 @@ class CausalSession:
                  initial_node: Tuple[int, int, int],
                  instruction_frequency: float,
                  momentum: Tuple[float, float, float] = (0.0, 0.0, 0.0),
-                 is_massless: bool = False):
+                 is_massless: bool = False,
+                 *,
+                 prob_floor: float | None = None):
+        """
+        prob_floor : float | None, default None
+            Minimum per-site probability (= |psi_R|^2 + |psi_L|^2).  When a
+            tick produces a per-site probability below prob_floor, both
+            spinor components at that node are scaled so the per-site
+            probability equals prob_floor exactly, with phase (and the R/L
+            ratio) preserved; the joint state is then renormalised so
+            sum(probabilities) == 1 (A=1 preserved).  Applied at
+            end-of-tick.  None (default) clamps nothing -- behaviour is
+            bit-for-bit the pre-prob_floor engine.  Nodes with exactly zero
+            amplitude carry no phase and are left at zero (the floor is the
+            minimum *non-zero* probability quantum, mirroring core3d's
+            1/N = delta_p_min granularity).  This IS the delta_p_min knob
+            for the continuous engine (see dcl-delta-p-min's 4-cell grid).
+        """
         self.lattice          = lattice
         self.phase_rotor      = PhaseOscillator(frequency=instruction_frequency)
         self.tick_counter     = 0
         self.is_massless      = is_massless
+
+        if prob_floor is not None and not (0.0 < prob_floor < 1.0):
+            raise ValueError(
+                f"prob_floor must be in the open interval (0, 1) or None, "
+                f"got {prob_floor!r}"
+            )
+        self.prob_floor       = prob_floor
 
         # Two-component Dirac spinor
         shape = (lattice.size_x, lattice.size_y, lattice.size_z)
@@ -262,10 +286,37 @@ class CausalSession:
             new_psi_L = cos_half * hop_L + 1j * sin_half * self.psi_L
 
         # A=1: normalize both components jointly (skip iff caller asks).
+        # The probability floor (if set) is applied FIRST, then the joint
+        # renormalisation restores sum(p)=1 -- so prob_floor never breaks A=1.
         if normalize:
+            if self.prob_floor is not None:
+                self._apply_prob_floor(new_psi_R, new_psi_L)
             enforce_unity_spinor(new_psi_R, new_psi_L)
         self.psi_R = new_psi_R
         self.psi_L = new_psi_L
+
+    def _apply_prob_floor(self, psi_R: np.ndarray, psi_L: np.ndarray) -> None:
+        """
+        Clamp per-site probability up to self.prob_floor (in place).
+
+        Per-site probability is p(x) = |psi_R(x)|^2 + |psi_L(x)|^2 -- this IS
+        the Born density of the bipartite Dirac spinor at node x.  Any node
+        with 0 < p(x) < prob_floor has BOTH components scaled by the real,
+        positive factor sqrt(prob_floor / p(x)); afterward p(x) == prob_floor
+        exactly and every phase (and the psi_R/psi_L ratio) is unchanged.
+        Nodes with p(x) == 0 carry no amplitude to rescale and are left at
+        zero (no phase to preserve; division-by-zero avoided).
+
+        Called at end-of-tick, BEFORE enforce_unity_spinor, per the
+        dcl-delta-p-min coordination spec (notes/dcl_core_coordination.md):
+        applying the floor mid-tick would leave the partial state non-unit.
+        """
+        p = np.abs(psi_R) ** 2 + np.abs(psi_L) ** 2
+        below = (p > 0.0) & (p < self.prob_floor)
+        # safe denominator: only the `below` sites are actually rescaled
+        scale = np.where(below, np.sqrt(self.prob_floor / np.where(below, p, 1.0)), 1.0)
+        psi_R *= scale
+        psi_L *= scale
 
     def probability_density(self) -> np.ndarray:
         """Total probability density: |psi_R|^2 + |psi_L|^2."""
