@@ -144,3 +144,101 @@ class TestProbFloorUnity:
             s.tick()
             assert unity_residual_spinor(s.psi_R, s.psi_L) < 1e-10
             s.advance_tick_counter()
+
+
+# ── Deep-denormal overflow safety (v0.2.2 regression) ────────────────────────
+
+class TestProbFloorDenormalOverflow:
+    """A continuous wavepacket's tail underflows p(x) to deep denormals
+    (p ~ 1e-323).  The fused ``sqrt(prob_floor / p)`` overflows to inf there
+    (prob_floor / p > max_float), then NaN-poisons the joint renormalisation.
+    v0.2.2 splits the rescale into ``sqrt(prob_floor) / sqrt(p)`` so both
+    operands stay in the normal float64 range.  These guard that fix."""
+
+    def _denormal_packet(self, size, width, eps):
+        lat = OctahedralLattice(size, size, size)
+        c = size // 2
+        x = np.arange(size)
+        xx, yy, zz = np.meshgrid(x, x, x, indexing="ij")
+        # Narrow Gaussian -> its tail underflows to deep denormals on this grid.
+        env = np.exp(-0.5 * ((xx - c) ** 2 + (yy - c) ** 2 + (zz - c) ** 2)
+                     / width ** 2)
+        amp = env.astype(complex) / np.sqrt(2.0)
+        s = CausalSession(lat, (c, c, c), 0.1019, prob_floor=eps)
+        s.psi_R = amp.copy()
+        s.psi_L = amp.copy()
+        from dcl_core.core.UnityConstraint import enforce_unity_spinor
+        enforce_unity_spinor(s.psi_R, s.psi_L)
+        return s
+
+    @pytest.mark.parametrize("eps", [1e-10, 1e-6, 1e-3, 0.25])
+    def test_deep_denormal_tail_stays_finite_and_unit(self, eps):
+        """min nonzero p ~ 1e-323 must not overflow; A=1 must survive."""
+        s = self._denormal_packet(size=33, width=0.5, eps=eps)
+        p0 = s.probability_density()
+        assert p0[p0 > 0].min() < 1e-300        # genuine deep-denormal tail
+        with np.errstate(over="raise", invalid="raise", divide="raise",
+                         under="ignore"):
+            for _ in range(20):
+                s.tick()
+                s.advance_tick_counter()
+        d = s.probability_density()
+        assert np.isfinite(d.sum())
+        assert unity_residual_spinor(s.psi_R, s.psi_L) < 1e-10
+
+    def test_split_sqrt_matches_fused_for_normal_p(self):
+        """For non-denormal p the split form must equal the old fused form to
+        ~1 ulp (so v0.2.1 results are reproduced where they were finite)."""
+        s = make_session(7, prob_floor=1e-4)
+        s.psi_R[:] = 0.0
+        s.psi_L[:] = 0.0
+        s.psi_R[2, 2, 2] = 5e-3 * np.exp(1j * 0.4)   # p = 2.5e-5 < floor
+        fused = np.sqrt(1e-4 / 2.5e-5)
+        s._apply_prob_floor(s.psi_R, s.psi_L)
+        p = abs(s.psi_R[2, 2, 2]) ** 2 + abs(s.psi_L[2, 2, 2]) ** 2
+        assert p == pytest.approx(1e-4, rel=1e-12)
+        del fused
+
+
+# ── Manufactured-probability cleanup ledger (v0.2.2 A=1 accounting) ──────────
+
+class TestProbFloorLedger:
+    """Raising a sub-floor node to prob_floor manufactures (floor - p) of
+    probability there; A=1 renormalisation redistributes it.  The ledger
+    records that manufactured mass exactly (dcl-delta-p-min zoo-accounting)."""
+
+    def test_none_floor_ledger_is_zero(self):
+        s = make_session(9, momentum=(0.2, 0.0, 0.0))   # prob_floor=None
+        for _ in range(10):
+            s.tick(); s.advance_tick_counter()
+        led = s.floor_ledger()
+        assert led["manufactured_total"] == 0.0
+        assert led["n_raised_total"] == 0
+        assert led["ticks_floored"] == 0
+
+    def test_manufactured_mass_matches_hand_count(self):
+        """One known sub-floor node -> manufactured == floor - p exactly."""
+        s = make_session(7, prob_floor=1e-4)
+        s.psi_R[:] = 0.0
+        s.psi_L[:] = 0.0
+        s.psi_R[3, 3, 3] = 0.8                        # big, untouched
+        s.psi_R[0, 0, 0] = 1e-3 * np.exp(1j * 0.5)    # p = 1e-6 < floor
+        p_small = abs(s.psi_R[0, 0, 0]) ** 2
+        s._apply_prob_floor(s.psi_R, s.psi_L)
+        led = s.floor_ledger()
+        assert led["manufactured_last"] == pytest.approx(1e-4 - p_small, rel=1e-9)
+        assert led["n_raised_last"] == 1
+        assert led["manufactured_total"] == pytest.approx(1e-4 - p_small, rel=1e-9)
+
+    def test_aggressive_floor_manufactures_large_mass(self):
+        """A floor of 0.25 over-writes a packet toward uniform: the ledger's
+        manufactured_total must be >> 1 (the quantitative destruction signal),
+        while A=1 still holds."""
+        s = self_packet = TestProbFloorDenormalOverflow()._denormal_packet(
+            size=21, width=1.5, eps=0.25)
+        for _ in range(15):
+            s.tick(); s.advance_tick_counter()
+        led = s.floor_ledger()
+        assert led["manufactured_total"] > 1.0
+        assert led["ticks_floored"] == 15
+        assert unity_residual_spinor(s.psi_R, s.psi_L) < 1e-10

@@ -93,6 +93,24 @@ class CausalSession:
             )
         self.prob_floor       = prob_floor
 
+        # ── prob_floor cleanup ledger (A=1 probability accounting) ──────────
+        # Raising a sub-floor node up to prob_floor *manufactures* probability
+        # (floor - p) at that node; the end-of-tick joint renormalisation then
+        # spreads that manufactured mass across the whole state so A=1 still
+        # holds.  The manufactured mass is therefore not free -- it is a real
+        # bookkeeping quantity (the "probability debt" the floor incurs each
+        # tick).  These counters record it exactly so the displaced mass can be
+        # audited downstream (dcl-delta-p-min's zoo-accounting hypothesis: the
+        # debt is balanced by other generators in the SM zoo).  All stay 0.0
+        # when prob_floor is None.
+        self.floor_manufactured_total = 0.0   # cumulative manufactured prob
+        self.floor_n_raised_total     = 0     # cumulative count of raised nodes
+        self.floor_ticks_floored      = 0     # ticks on which the floor ran
+        self._floor_manufactured_last = 0.0   # per-tick manufactured prob
+        self._floor_n_raised_last     = 0     # per-tick count of raised nodes
+        self._floor_sum_before_last   = 0.0   # sum(p) before the floor (pre-renorm)
+        self._floor_sum_after_last    = 0.0   # sum(p) after the floor (pre-renorm)
+
         # Two-component Dirac spinor
         shape = (lattice.size_x, lattice.size_y, lattice.size_z)
         self.psi_R = np.zeros(shape, dtype=complex)
@@ -297,26 +315,90 @@ class CausalSession:
 
     def _apply_prob_floor(self, psi_R: np.ndarray, psi_L: np.ndarray) -> None:
         """
-        Clamp per-site probability up to self.prob_floor (in place).
+        Clamp per-site probability up to self.prob_floor (in place) and record
+        the manufactured-probability ledger.
 
         Per-site probability is p(x) = |psi_R(x)|^2 + |psi_L(x)|^2 -- this IS
         the Born density of the bipartite Dirac spinor at node x.  Any node
         with 0 < p(x) < prob_floor has BOTH components scaled by the real,
-        positive factor sqrt(prob_floor / p(x)); afterward p(x) == prob_floor
-        exactly and every phase (and the psi_R/psi_L ratio) is unchanged.
-        Nodes with p(x) == 0 carry no amplitude to rescale and are left at
-        zero (no phase to preserve; division-by-zero avoided).
+        positive factor sqrt(prob_floor)/sqrt(p(x)); afterward p(x) ==
+        prob_floor exactly and every phase (and the psi_R/psi_L ratio) is
+        unchanged.  Nodes with p(x) == 0 carry no amplitude to rescale and are
+        left at zero (no phase to preserve; division-by-zero avoided).
+
+        Overflow safety.  The rescale factor is computed as
+        ``sqrt(prob_floor) / sqrt(p)``, NOT ``sqrt(prob_floor / p)``.  The two
+        are algebraically identical, but the fused form forms the intermediate
+        ``prob_floor / p`` which overflows to ``inf`` (then propagates NaN
+        through the joint renormalisation) whenever a continuous wavepacket's
+        tail has underflowed p to a deep denormal (p < prob_floor / max_float
+        ~ 1e-308 * prob_floor).  Splitting into two square roots keeps both
+        operands in the normal float64 range -- even the smallest subnormal
+        p ~ 1e-323 has sqrt(p) ~ 3e-162, a normal double -- so the floor is
+        numerically robust on the deep tails that arise on large lattices.
+
+        A=1 accounting.  Raising a node from p to prob_floor manufactures
+        (prob_floor - p) of probability there; the end-of-tick
+        ``enforce_unity_spinor`` then renormalises sum(p) back to 1, spreading
+        that manufactured mass across the state.  A=1 is never broken, but the
+        manufactured mass is a real bookkeeping quantity and is recorded
+        exactly in self.floor_* (see __init__).  Large manufactured totals are
+        the quantitative signature of the floor over-writing a continuous
+        packet toward uniform -- the cross-engine non-equivalence with
+        core3d's token granularity (where sub-quantum mass rounds *down* to
+        empty rather than *up* to the floor).
 
         Called at end-of-tick, BEFORE enforce_unity_spinor, per the
         dcl-delta-p-min coordination spec (notes/dcl_core_coordination.md):
         applying the floor mid-tick would leave the partial state non-unit.
         """
+        floor = self.prob_floor
         p = np.abs(psi_R) ** 2 + np.abs(psi_L) ** 2
-        below = (p > 0.0) & (p < self.prob_floor)
-        # safe denominator: only the `below` sites are actually rescaled
-        scale = np.where(below, np.sqrt(self.prob_floor / np.where(below, p, 1.0)), 1.0)
+        below = (p > 0.0) & (p < floor)
+
+        # ── ledger: probability this tick's floor manufactures ──────────────
+        manufactured = float(np.sum(np.where(below, floor - p, 0.0)))
+        sum_before = float(p.sum())
+
+        # ── apply floor (overflow-safe split-sqrt; only `below` sites move) ─
+        safe_p = np.where(below, p, 1.0)
+        scale = np.where(below, np.sqrt(floor) / np.sqrt(safe_p), 1.0)
         psi_R *= scale
         psi_L *= scale
+
+        # ── record ledger ───────────────────────────────────────────────────
+        n_raised = int(below.sum())
+        self._floor_manufactured_last = manufactured
+        self._floor_n_raised_last = n_raised
+        self._floor_sum_before_last = sum_before
+        self._floor_sum_after_last = sum_before + manufactured
+        self.floor_manufactured_total += manufactured
+        self.floor_n_raised_total += n_raised
+        self.floor_ticks_floored += 1
+
+    def floor_ledger(self) -> dict:
+        """Snapshot of the prob_floor cleanup ledger (A=1 accounting).
+
+        manufactured_total : cumulative probability the floor has manufactured
+            (sum over ticks of sum_x max(0, prob_floor - p(x)) on raised
+            nodes), pre-renormalisation.  This is the displaced mass A=1
+            conservation must attribute -- the dcl-delta-p-min zoo-accounting
+            target.  0.0 when prob_floor is None or the floor never bit.
+        n_raised_total     : cumulative count of node-raisings.
+        ticks_floored      : number of ticks the floor ran.
+        manufactured_last / n_raised_last / sum_before_last / sum_after_last :
+            the most recent tick's values.
+        """
+        return {
+            "prob_floor": self.prob_floor,
+            "manufactured_total": self.floor_manufactured_total,
+            "n_raised_total": self.floor_n_raised_total,
+            "ticks_floored": self.floor_ticks_floored,
+            "manufactured_last": self._floor_manufactured_last,
+            "n_raised_last": self._floor_n_raised_last,
+            "sum_before_last": self._floor_sum_before_last,
+            "sum_after_last": self._floor_sum_after_last,
+        }
 
     def probability_density(self) -> np.ndarray:
         """Total probability density: |psi_R|^2 + |psi_L|^2."""
