@@ -13,7 +13,28 @@ the **CURRENT STATUS** block at the top up to date.
 
 ---
 
-## CURRENT STATUS (2026-06-09) -- v0.2.1 released (`prob_floor`); v0.2.0 released; v1.0.0 still gated on dcl-delta-p-min
+## CURRENT STATUS (2026-06-15) -- v0.2.2 released (`prob_floor` denormal fix + ledger); v0.2.1/v0.2.0 released; v1.0.0 still gated on dcl-delta-p-min
+
+**v0.2.2 RELEASED 2026-06-15 -- the `prob_floor` hardening release.**
+DOI `10.5281/zenodo.20711380`, tag `v0.2.2` (pushed at commit
+`cf53c5b`, the DOI back-fill).  Two-part PATCH to v0.2.1's `prob_floor`:
+(1) fix the denormal-overflow NaN (`sqrt(prob_floor)/sqrt(p)` instead of
+`sqrt(prob_floor/p)`, keeping operands in normal float64 range), and
+(2) add the read-only `CausalSession.floor_ledger()` + `floor_*` counters
+(the A=1 cleanup budget -- manufactured probability when a sub-floor node
+is raised).  `prob_floor=None` is still bit-for-bit the v0.2.0/v0.2.1
+engine; no re-export changes.  Suite **257 passed, 1 skipped, 26
+xfailed** (pytest exit 0).  Exists to unblock `dcl-delta-p-min`'s Phase 2
+4-cell grid `core` column (NaN'd on tick 0 under v0.2.1) and to give
+**Paper IV (`dcl-paper-04-optical-axis-birefringence`)** an official,
+pinnable `@v0.2.2`.
+- Release notes: `release_notes/v0.2.2.md`, `-release-message.md`,
+  `-zenodo-description.txt` (DOI back-filled into all three +
+  `CITATION.cff`).
+- **v0.2.2 remaining (user-owned):** publish the GitHub Release for tag
+  `v0.2.2` using `release_notes/v0.2.2-release-message.md` (gh not authed
+  here).  Then bump downstream pins (`dcl-delta-p-min`,
+  `dcl-paper-04-optical-axis-birefringence`) to `@v0.2.2`.
 
 **v0.2.0 RELEASED 2026-06-07** -- DOI `10.5281/zenodo.20586191`, tag
 `v0.2.0`, GitHub Release published.  Content: cross-validation layer
