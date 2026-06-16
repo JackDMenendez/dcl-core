@@ -1,0 +1,92 @@
+dcl_core is a Python library implementing the A=1 Discrete Causal
+Lattice (DCL) framework, the substrate underlying the "Geometry First"
+research series.  v0.2.2 is a patch release that hardens the prob_floor
+feature added in v0.2.1.  The package continues to ship two engines
+under a single import, side-by-side, so downstream research can compare
+them directly.
+
+The first engine, dcl_core.core, is a near-verbatim port of the
+continuous-amplitude formulation from Paper I (Menendez, 2026,
+Zenodo: 10.5281/zenodo.20078529).  Sessions carry complex Dirac
+spinor amplitudes (psi_R on the RGB sublattice, psi_L on CMY),
+evolve under a bipartite tick rule, and enforce A=1 through a post-hop
+renormalisation.  The second engine, dcl_core.core3d, is the
+integer-token reimplementation that enforces A=1 as an exact integer
+identity (sum_x (N_RGB(x) + N_CMY(x)) == n_units, with no float
+tolerance).
+
+What is new in v0.2.2
+---------------------
+
+A two-part patch to prob_floor (the continuous engine's delta_p_min
+knob on dcl_core.core.CausalSession):
+
+1. Bug fix -- prob_floor denormal overflow -> NaN.  The rescale factor
+   was sqrt(prob_floor / p(x)).  A continuous wavepacket's exponential
+   tail underflows p(x) to deep denormals (p ~ 1e-323), where the
+   intermediate prob_floor / p overflows to inf and NaN-poisons the
+   joint renormalisation, destroying the state on tick 0.  v0.2.2
+   computes the algebraically identical sqrt(prob_floor) / sqrt(p),
+   keeping both operands in the normal float64 range (even the smallest
+   subnormal p ~ 1e-323 has sqrt(p) ~ 3e-162).  Results that were finite
+   under v0.2.1 are reproduced to ~1 ulp; results that were NaN are now
+   finite and A=1-consistent.
+
+2. Added -- CausalSession.floor_ledger() and the floor_* counters.
+   Raising a sub-floor node from p up to prob_floor manufactures
+   (prob_floor - p) of probability at that node; end-of-tick
+   renormalisation redistributes it so A=1 still holds, but the
+   manufactured mass is a real bookkeeping quantity -- the A=1 cleanup
+   budget.  The ledger records it exactly.  All counters stay 0 when
+   prob_floor is None.  The ledger makes the cross-engine
+   non-equivalence quantitative: a small floor (1e-10 to 1e-6)
+   manufactures negligible mass and leaves the packet intact; an
+   aggressive floor (0.25) manufactures mass >> 1 and over-writes the
+   packet toward uniform -- unlike core3d, where sub-quantum mass rounds
+   down to empty rather than up to the floor.
+
+The release exists to unblock the downstream dcl-delta-p-min
+investigation: the continuous (core) column of its Phase 2 4-cell grid
+runs prob_floor on narrow tidal-ionization packets over large lattices,
+the regime that surfaced the denormal bug.
+
+This is released as a PATCH, not a MINOR: the fix changes only
+previously-NaN results (finite results reproduce to ~1 ulp), the ledger
+is purely additive and read-only, prob_floor=None (the default) is
+bit-for-bit identical to the v0.2.0/v0.2.1 engine, and no re-exported
+symbol is added or removed.  It is NOT the v1.0.0 cut -- the formal API
+freeze remains gated on dcl-delta-p-min finishing and co-releases with
+Paper III.
+
+Tests at release: 257 passed, 1 skipped, 26 xfailed (v0.2.1: 252
+passed).  The new tests are TestProbFloorDenormalOverflow (a genuine
+deep-denormal tail stays finite and A=1-unit over 20 ticks under
+np.errstate(over='raise', invalid='raise') across prob_floor in
+{1e-10, 1e-6, 1e-3, 0.25}, plus a split-sqrt vs fused-form agreement
+check) and TestProbFloorLedger (zero ledger when None; exact floor - p
+for a known sub-floor node; >> 1 manufactured under an aggressive floor
+while A=1 holds), in tests/test_prob_floor_a1_consistency.py.  The 26
+xfails remain pre-existing Paper I port drift inherited with the engine.
+
+Install
+-------
+    pip install "git+https://github.com/JackDMenendez/dcl-core@v0.2.2"
+
+For symbolic verification (Clifford algebra) or the GPU backend:
+    pip install "dcl_core[sympy] @ git+https://github.com/JackDMenendez/dcl-core@v0.2.2"
+    pip install "dcl_core[gpu]   @ git+https://github.com/JackDMenendez/dcl-core@v0.2.2"
+
+License: MIT (source), CC BY 4.0 (documentation).
+
+Citation: see CITATION.cff in the repository.  This release's DOI is
+10.5281/zenodo.20711380.  Downstream papers and investigations in the
+A=1 DCL series that depend on dcl_core pin to this version for
+reproducibility.
+
+Repository: https://github.com/JackDMenendez/dcl-core
+Project homepage: https://geometryinducedphysics.org/
+
+Related identifiers:
+  isNewVersionOf   10.5281/zenodo.20615410  (dcl_core v0.2.1)
+  isSupplementTo   10.5281/zenodo.20078529  (Paper I)
+  references       10.5281/zenodo.20292158  (Paper II)
