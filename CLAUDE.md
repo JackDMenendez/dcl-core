@@ -281,6 +281,15 @@ choice of engine is explicit at every import site.
 
 ### `dcl_core.core` -- continuous-amplitude engine (Paper~I port)
 
+> **Engine policy (2026-06-16): `core3d` is canonical; `core` is
+> legacy-only.** New physics features go in `core3d`. `core` is maintained
+> only to reproduce existing experiments (and pre-sanctioned additions like
+> `prob_floor`); do not extend it for new capabilities. Rationale: `core`
+> is a single continuous amplitude, so it yields only single-configuration
+> responses and structurally cannot produce the **vacuum-averaged**
+> (token-ensemble) response that new work needs -- see
+> `docs/design/04_gauge_field_and_vacuum_response.md` §1.1.
+
 | Module | Role |
 |---|---|
 | `src/dcl_core/core/OctahedralLattice.py` | Bipartite lattice geometry + constants (`RGB_VECTORS` etc.) |
