@@ -379,6 +379,13 @@ semver bump.  Cross-validation between the two submodules lives in
   pre-1.0 + every old name still resolves -- treat this as the **v1.0
   API freeze** (new names canonical, aliases deprecated). Drop the
   aliases no earlier than the first MAJOR after 1.0.
+- **Handoffs (cross-session).** At the end of a unit of work another session
+  needs to pick up (the PM, or a downstream-paper Claude), file a handoff via
+  the **`/handoff`** skill -- a committed record under `dcl-project/handoffs/`
+  with required frontmatter and an explicit *Consumer actions* list. Do not
+  use chat-paste status as the system of record; it is lossy and a buried
+  risk-flag gets dropped. `/handoff` (produce) scaffolds and enforces the
+  format; the PM runs `/handoff read` to reconcile (board + memory + gates).
 
 ---
 

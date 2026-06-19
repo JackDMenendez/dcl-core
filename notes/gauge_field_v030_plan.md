@@ -234,7 +234,8 @@ in the provenance, not just the code):
       "mode": "static-background",   // degenerate Field, no members; vs "session-sourced" (later)
       "A0": {"source": "external_potential", "convention": "Paper I App. B"},
       "A":  {"helper": "uniform_B_potential", "B_vec": [0, 0, 1],
-             "gauge": "symmetric", "origin": null, "A_mid": "half-sum"}
+             "gauge": "symmetric", "origin": null,
+             "A_mid": "backward / gather-side: ½(A(x)+A(x−v))"}
     }
   ]
 }
@@ -246,7 +247,10 @@ in the provenance, not just the code):
   line, made legible in the data, in the **inverted-seam vocabulary** of
   `notes/figures/core3d-classes.md` (not the superseded `*Provider` names).
 - `A0.convention` pins the §0.5 sign trap; `A.gauge`/`A_mid` pin D4 — a
-  reader can tell an off-by-convention rerun from a real one.
+  reader can tell an off-by-convention rerun from a real one. Record the
+  `A_mid` **direction** (Phase 1 shipped the *backward / gather-side*
+  `½(A(x)+A(x−v))`, not the requirements' `A(x+v)`), so a Q-tensor (#4)
+  sign-flip is traceable to the convention, not mistaken for a physics bug.
 - **`None`/absent `run.fields` ⇒ a v0.2.x-style field-free run** — old
   manifests stay valid, so the block is back-compatible.
 
