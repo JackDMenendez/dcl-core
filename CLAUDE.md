@@ -489,8 +489,22 @@ mklink /J external\research C:\dev\physics-research
 
 `notes/README.md` -- conventions for notes/
 
+**LIVING design doc:** `docs/design/05_interaction_engine.md` -- the
+maintained single source of truth for the `core3d` multi-session
+*interaction engine* design (session/field architecture, the
+physics-vs-architecture boundary, decisions ledger, limitations ledger).
+Continuously updated (not frozen at release).  Driven first by the
+v0.3.0 gauge work; companions are the class diagram
+`notes/figures/core3d-classes.md` and the plan note below.
+
 Landed notes:
 
+- `notes/gauge_field_v030_plan.md` (DRAFT) -- working implementation
+  plan for the v0.3.0 core3d U(1) gauge field / Peierls coupling.
+  Decisions D1-D4 still open (how the field reaches the hop;
+  in-engine vs experiment-side R4 readout; `gauge.py` home; `A_mid`
+  convention).  Sequences R1-R5 onto files; CPU-first.  Companion to
+  the requirements `docs/design/04_gauge_field_and_vacuum_response.md`.
 - `notes/color_structure.md` (DRAFT) -- the corrected colour
   picture for proton internals: geometric RGB gives only
   $\mathbb{Z}_3$; real SU(3) colour lives on a separate $\mathbb{C}^3$
