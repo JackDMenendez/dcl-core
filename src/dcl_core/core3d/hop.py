@@ -83,6 +83,7 @@ class HopOperator:
         session: DiscreteCausalSession,
         parity: TickParity,
         external_potential: np.ndarray | None = None,
+        vector_potential: np.ndarray | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Compute the analytical (psi_R_new, psi_L_new) for one tick.
 
@@ -93,7 +94,12 @@ class HopOperator:
         parity : "even" | "odd"
             Which sublattice is active this tick.
         external_potential : array of shape `lattice.shape`, optional
-            On-site contribution to `delta_phi`. Defaults to zeros.
+            On-site contribution to `delta_phi` (the temporal / mass +
+            electric-scalar phase). Defaults to zeros.
+        vector_potential : array of shape `(3, *lattice.shape)`, optional
+            U(1) gauge field `A`. Couples to the spatial hop via the
+            Peierls link phase (see :meth:`_hop_average`). ``None`` (the
+            default) reproduces the gauge-free hop bit-for-bit.
 
         Returns
         -------
@@ -130,17 +136,25 @@ class HopOperator:
         cos_half = backend.cos(delta_phi / 2.0)
         sin_half = backend.sin(delta_phi / 2.0)
 
+        if vector_potential is not None:
+            expected_shape = (3, *self.lattice.shape)
+            if vector_potential.shape != expected_shape:
+                raise ValueError(
+                    f"vector_potential.shape {vector_potential.shape} "
+                    f"!= expected {expected_shape}"
+                )
+
         vectors = self.lattice.neighbour_offsets(parity)
         if parity == "even":
             # Even tick: V_3^+ (RGB) is the active sublattice.  The RGB
             # component takes the hopped CMY amplitude; CMY is passive.
             # physics: psi_R updates from hopped psi_L (Dirac kinetic term).
-            hop_L = self._hop_average(psi_L, vectors)
+            hop_L = self._hop_average(psi_L, vectors, vector_potential)
             psi_R_new = cos_half * hop_L + 1j * sin_half * psi_R
             psi_L_new = psi_L
         else:  # odd tick: V_3^- (CMY) active.
             # physics: psi_L updates from hopped psi_R.
-            hop_R = self._hop_average(psi_R, vectors)
+            hop_R = self._hop_average(psi_R, vectors, vector_potential)
             psi_L_new = cos_half * hop_R + 1j * sin_half * psi_L
             psi_R_new = psi_R
 
@@ -150,18 +164,54 @@ class HopOperator:
         self,
         psi: np.ndarray,
         vectors: tuple[tuple[int, int, int], ...],
+        vector_potential: np.ndarray | None = None,
     ) -> np.ndarray:
         """Mean of ``psi`` shifted by each vector in ``vectors``.
 
         Matches the docstring's "average of `psi` over the three
         X-basis-vector shifts."  Uses ``backend.shift`` (periodic) so
         the result respects the lattice's boundary conventions.
+
+        Peierls coupling
+        ----------------
+        ``backend.shift(psi, v)`` gathers ``psi`` from ``x - v`` to ``x``
+        (the hop traverses the link ``x - v -> x``).  With a U(1) gauge
+        field ``A`` present, that gathered amplitude acquires the link
+        phase ``exp(i * A_mid . v)`` with the **symmetrised mid-point**
+        ``A_mid = 1/2 (A(x) + A(x - v))`` -- the value of ``A`` at the
+        midpoint of the traversed link (Paper I App. B's symmetrised
+        Peierls form; cancels the order-``a^3`` corner artifact).
+        physics: this IS the U(1) gauge connection on the hop link --
+        ``exp(i * integral A . dl)`` discretised.
+
+        Note the **backward** midpoint ``A(x - v)`` (not ``A(x + v)``):
+        it is the geometric midpoint of the link actually traversed by
+        ``backend.shift``'s gather-from-``x - v`` convention.  ``A . v``
+        is linear in ``A``, so the midpoint of the dot equals the dot of
+        the midpoint: ``A_mid . v = 1/2 (Av(x) + Av(x - v))`` with
+        ``Av = sum_c A[c] * v[c]`` -- computed as a scalar field so the
+        per-component shift of ``A`` is never needed.  ``A is None`` (or
+        all-zero) reproduces the gauge-free average bit-for-bit.
         """
         backend = get_backend(self.lattice.backend)
         n = len(vectors)
-        accumulator = backend.shift(psi, vectors[0])
-        for v in vectors[1:]:
-            accumulator = accumulator + backend.shift(psi, v)
+        accumulator = None
+        for v in vectors:
+            shifted = backend.shift(psi, v)
+            if vector_potential is not None:
+                # A_dot_v(x) = A(x) . v, a scalar field; the midpoint along
+                # the traversed link x-v -> x is 1/2 (A_dot_v(x) + A_dot_v(x-v)).
+                # physics: IS the gauge connection component along the hop link.
+                A_dot_v = (
+                    vector_potential[0] * v[0]
+                    + vector_potential[1] * v[1]
+                    + vector_potential[2] * v[2]
+                )
+                A_dot_v_mid = 0.5 * (A_dot_v + backend.shift(A_dot_v, v))
+                # physics: IS exp(i * integral A . dl) -- the U(1) Peierls
+                # link phase for the hop x-v -> x.
+                shifted = backend.exp(1j * A_dot_v_mid) * shifted
+            accumulator = shifted if accumulator is None else accumulator + shifted
         return accumulator / n
 
     def fourier_kernel(self, k: np.ndarray) -> np.ndarray:
