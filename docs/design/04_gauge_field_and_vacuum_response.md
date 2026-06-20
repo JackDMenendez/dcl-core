@@ -219,8 +219,8 @@ large `N` (to resolve the birefringence order) × lattices up to `129^3`.
   **provisioned** (offered 2026-06-16). This is a hardware/runtime
   dependency, distinct from the R2/R5 code requirement to implement the
   GPU Peierls path: the code can land CPU-first, but the **precision of the
-  central isotropy result (acceptance test #5) scales with the available
-  `N`**, which is GPU-bound. Track provisioning alongside this doc.
+  central birefringence-order result (acceptance test #5) scales with the
+  available `N`**, which is GPU-bound. Track provisioning alongside this doc.
 
 ## 7. References
 
