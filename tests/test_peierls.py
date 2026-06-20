@@ -36,6 +36,7 @@ from dcl_core.core3d import (
     TickScheduler,
     TokenResidual,
     uniform_B_potential,
+    uniform_E_potential,
 )
 
 
@@ -237,6 +238,116 @@ def test_uniform_B_potential_rejects_bad_shapes() -> None:
         uniform_B_potential((8, 8), np.array([1.0, 0.0, 0.0]))
     with pytest.raises(ValueError):
         uniform_B_potential((8, 8, 8), np.array([1.0, 0.0]))
+
+
+# ---------------------------------------------------------------------------
+# R4 electric sector -- uniform_E_potential (A_0 = -E.(r-origin))
+# ---------------------------------------------------------------------------
+
+def test_uniform_E_potential_grad_is_E(small_shape: tuple[int, int, int]) -> None:
+    """-grad(A_0) == E everywhere for the uniform-E scalar potential."""
+    E = np.array([0.2, -0.1, 0.3])
+    A0 = uniform_E_potential(small_shape, E)
+    assert A0.shape == small_shape
+    # A_0 is linear so np.gradient is exact; -grad recovers E.
+    np.testing.assert_allclose(-np.gradient(A0, axis=0), E[0], atol=1e-12)
+    np.testing.assert_allclose(-np.gradient(A0, axis=1), E[1], atol=1e-12)
+    np.testing.assert_allclose(-np.gradient(A0, axis=2), E[2], atol=1e-12)
+
+
+def test_a1_exact_under_E_and_B(small_shape: tuple[int, int, int]) -> None:
+    """A=1 holds every tick under the **combined E+B** background.
+
+    Confirms the engine supports both gauge sectors at once (R4): the
+    electric A_0 via external_potential and the magnetic A via
+    vector_potential, with token conservation exact.
+    """
+    lattice = BipartiteLattice(shape=small_shape)
+    session = _wavepacket(lattice)
+    A0 = uniform_E_potential(small_shape, np.array([0.05, 0.0, 0.0]))
+    A = uniform_B_potential(small_shape, np.array([0.0, 0.0, 0.08]))
+    sched = TickScheduler(
+        lattice=lattice,
+        hop=HopOperator(lattice=lattice),
+        external_potential=A0,
+        vector_potential=A,
+    )
+    sched.register(session)
+    n_units = session.n_units
+    for tick in range(6):
+        sched.step()
+        assert session.total_tokens() == n_units, f"A=1 broke at tick {tick}"
+
+
+# ---------------------------------------------------------------------------
+# #5 (machinery + interplay) -- the E+B response is live, both sectors
+# contribute, and there is no destructive E/B cancellation.
+# ---------------------------------------------------------------------------
+
+def test_E_plus_B_interplay_is_live_and_non_cancelling() -> None:
+    """The combined E+B induced response is well-defined and does not cancel.
+
+    The requirements' #5 *verdict* -- classify the leading photon
+    birefringence order (O(1) dim-4 vs (ka)^2-suppressed vs null) -- is a
+    **vacuum-averaged, N-converged** research result and is the job of Paper
+    IV's `exp_03` (it needs the token-ensemble induced action, large N, and
+    the full orientation sweep; see `04_*.md` R4/R5). It is NOT decided in a
+    unit test.
+
+    What this test pins is the **engine machinery exp_03 builds on**, plus
+    the part of the verdict that IS robust at CPU scale:
+
+    - both gauge sectors contribute (B-only and E-only responses are live),
+    - the combined response adds **roughly in quadrature** (within 20%), so
+      there is **no destructive E/B cancellation** -- the *null* branch of
+      the #5 verdict is disfavoured already here, and
+    - the response is finite (no NaN/inf), consistent with the A=1-exact
+      evolution (`test_a1_exact_under_E_and_B`).
+
+    The exact order (O(1) vs (ka)^2) and the final sign close at `exp_03`.
+    """
+    shape = (12, 12, 12)
+    lattice = BipartiteLattice(shape=shape)
+    c = shape[0] // 2
+    session = DiscreteCausalSession.wavepacket(
+        lattice, n_units=1_000_000, omega=0.3, center=(c, c, c), sigma=2.0
+    )
+    hop = HopOperator(lattice=lattice)
+    axis = np.array([1.0, 1.0, -1.0]) / np.sqrt(3.0)  # the optical axis
+    B = uniform_B_potential(shape, 0.05 * axis)
+    A0 = uniform_E_potential(shape, 0.05 * axis)
+
+    def even_response(external_potential, vector_potential) -> float:
+        # Even in the field amplitude (symmetrise over flipping the field):
+        # isolates the second-order induced response of the token vacuum.
+        rp = hop.step(
+            session, "even",
+            external_potential=external_potential, vector_potential=vector_potential,
+        )
+        rm = hop.step(
+            session, "even",
+            external_potential=None if external_potential is None else -external_potential,
+            vector_potential=None if vector_potential is None else -vector_potential,
+        )
+        r0 = hop.step(session, "even", vector_potential=None)
+        rho = lambda r: np.abs(r[0]) ** 2 + np.abs(r[1]) ** 2
+        even = 0.5 * (rho(rp) + rho(rm)) - rho(r0)
+        return float(np.linalg.norm(even))
+
+    r_b = even_response(None, B)        # magnetic sector
+    r_e = even_response(A0, None)       # electric sector
+    r_eb = even_response(A0, B)         # combined
+
+    # Both sectors live.
+    assert r_b > 0.0 and r_e > 0.0, f"sector(s) dead: r_b={r_b}, r_e={r_e}"
+    assert np.isfinite(r_eb)
+
+    # No destructive cancellation: E+B adds ~ in quadrature (within 20%).
+    quadrature = float(np.hypot(r_b, r_e))
+    assert r_eb > 0.8 * quadrature, (
+        f"E+B response collapsed (possible cancellation): r_eb={r_eb}, "
+        f"quadrature={quadrature}"
+    )
 
 
 # ---------------------------------------------------------------------------

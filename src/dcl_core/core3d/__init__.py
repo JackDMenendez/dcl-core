@@ -47,7 +47,7 @@ from dcl_core.core3d.session import DiscreteCausalSession
 from dcl_core.core3d.hop import HopOperator
 from dcl_core.core3d.remainder import TokenResidual, BresenhamResidual
 from dcl_core.core3d.scheduler import TickScheduler
-from dcl_core.core3d.gauge import uniform_B_potential
+from dcl_core.core3d.gauge import uniform_B_potential, uniform_E_potential
 
 __all__ = [
     "BipartiteLattice",
@@ -55,8 +55,9 @@ __all__ = [
     "HopOperator",
     "TokenResidual",
     "TickScheduler",
-    # Gauge-field construction helper (v0.3.0; Peierls coupling).
+    # Gauge-field construction helpers (v0.3.0; Peierls coupling).
     "uniform_B_potential",
+    "uniform_E_potential",
     # Deprecated alias (renamed TokenResidual); kept for backward-compat.
     "BresenhamResidual",
 ]

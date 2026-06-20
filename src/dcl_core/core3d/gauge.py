@@ -88,3 +88,67 @@ def uniform_B_potential(
     A[1] = 0.5 * (B[2] * delta_r[0] - B[0] * delta_r[2])
     A[2] = 0.5 * (B[0] * delta_r[1] - B[1] * delta_r[0])
     return A
+
+
+def uniform_E_potential(
+    shape: tuple[int, int, int],
+    E_vec: tuple[float, float, float] | np.ndarray,
+    origin: tuple[float, float, float] | np.ndarray | None = None,
+) -> np.ndarray:
+    """Scalar potential ``A_0(r) = -E . (r - origin)`` for a uniform static E.
+
+    The **electric** sector of the gauge background (the magnetic sector is
+    :func:`uniform_B_potential`).  A static, uniform electric field ``E`` is
+    a spatially-linear on-site potential: ``-grad A_0 = E``.  Feed the
+    returned array to ``HopOperator.step(external_potential=...)`` /
+    ``TickScheduler.external_potential`` -- core3d's on-site
+    ``delta_phi = omega + A_0`` IS the temporal/tick-direction gauge phase.
+
+    physics: ``A_0`` IS the time-component of the U(1) gauge potential; the
+    static electric field is ``E = -grad A_0`` (no ``-dA/dt`` since the
+    background is static).
+
+    Parameters
+    ----------
+    shape : (int, int, int)
+        Lattice shape; the returned scalar field has shape ``shape``.
+    E_vec : (float, float, float)
+        Uniform electric field vector (lattice units).
+    origin : (float, float, float), optional
+        Zero of the potential.  Defaults to the lattice **centre**.  A shift
+        of ``origin`` adds a constant to ``A_0`` -- a global phase offset
+        with no effect on ``E`` or on densities.
+
+    Returns
+    -------
+    A0 : float64 array of shape ``shape``
+        physics: the electric scalar potential; ``-grad A0 = E``.
+
+    Notes
+    -----
+    Like a linear gauge on a torus, ``A_0 = -E.r`` is **not periodic** (it
+    jumps across the wrap).  Use a probe localised away from the boundary,
+    or a commensurate setup, exactly as for a constant vector potential.
+    This is an honest boundary limitation, not a bug.
+    """
+    if len(shape) != 3:
+        raise ValueError(f"shape must be a 3-tuple, got {shape!r}")
+    E = np.asarray(E_vec, dtype=np.float64)
+    if E.shape != (3,):
+        raise ValueError(f"E_vec must be a 3-vector, got shape {E.shape}")
+
+    if origin is None:
+        origin = np.array([(n - 1) / 2.0 for n in shape], dtype=np.float64)
+    else:
+        origin = np.asarray(origin, dtype=np.float64)
+        if origin.shape != (3,):
+            raise ValueError(f"origin must be a 3-vector, got shape {origin.shape}")
+
+    # Site-position field and displacement from the gauge origin.
+    # physics: r_sites IS the lattice site position r_i (lattice units, a=1);
+    #          delta_r = r - origin is the scalar-potential lever arm.
+    r_sites = np.indices(shape, dtype=np.float64)
+    delta_r = r_sites - origin[:, None, None, None]
+    # A_0(r) = -E . (r - origin).
+    # physics: -grad A_0 = E (the static electric field).
+    return -(E[0] * delta_r[0] + E[1] * delta_r[1] + E[2] * delta_r[2])
