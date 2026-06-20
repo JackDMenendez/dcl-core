@@ -33,7 +33,9 @@ from dcl_core.core3d import (
     BipartiteLattice,
     DiscreteCausalSession,
     HopOperator,
+    TickScheduler,
     TokenResidual,
+    uniform_B_potential,
 )
 
 
@@ -192,3 +194,202 @@ def test_a1_exact_under_gauge_field(small_shape: tuple[int, int, int]) -> None:
         session.phi_CMY[...] = np.angle(psi_l)
 
         assert session.total_tokens() == n_units, f"A=1 broke at tick {tick}"
+
+
+# ---------------------------------------------------------------------------
+# R3 -- uniform_B_potential (symmetric gauge)
+# ---------------------------------------------------------------------------
+
+def test_uniform_B_potential_curl_is_B(small_shape: tuple[int, int, int]) -> None:
+    """curl(A) == B everywhere for the symmetric-gauge uniform-B potential.
+
+    `A` is linear in position, so np.gradient (central differences) is
+    exact -- the discrete curl reproduces `B` to float roundoff.
+    """
+    B = np.array([0.3, -0.2, 0.15])
+    A = uniform_B_potential(small_shape, B)
+    assert A.shape == (3, *small_shape)
+
+    curl_x = np.gradient(A[2], axis=1) - np.gradient(A[1], axis=2)
+    curl_y = np.gradient(A[0], axis=2) - np.gradient(A[2], axis=0)
+    curl_z = np.gradient(A[1], axis=0) - np.gradient(A[0], axis=1)
+
+    np.testing.assert_allclose(curl_x, B[0], atol=1e-12)
+    np.testing.assert_allclose(curl_y, B[1], atol=1e-12)
+    np.testing.assert_allclose(curl_z, B[2], atol=1e-12)
+
+
+def test_uniform_B_potential_origin_is_pure_gauge(
+    small_shape: tuple[int, int, int],
+) -> None:
+    """Two origins differ by a constant (uniform) shift of A: a pure gauge."""
+    B = np.array([0.1, 0.2, -0.3])
+    a_centre = uniform_B_potential(small_shape, B)  # default = centre
+    a_corner = uniform_B_potential(small_shape, B, origin=(0, 0, 0))
+    diff = a_corner - a_centre
+    # The difference is spatially constant (same 3-vector at every site).
+    for c in range(3):
+        np.testing.assert_allclose(diff[c], diff[c].flat[0], atol=1e-12)
+
+
+def test_uniform_B_potential_rejects_bad_shapes() -> None:
+    with pytest.raises(ValueError):
+        uniform_B_potential((8, 8), np.array([1.0, 0.0, 0.0]))
+    with pytest.raises(ValueError):
+        uniform_B_potential((8, 8, 8), np.array([1.0, 0.0]))
+
+
+# ---------------------------------------------------------------------------
+# Scheduler threading (D1d: static field on TickScheduler -> hop.step)
+# ---------------------------------------------------------------------------
+
+def _run_scheduler(
+    shape: tuple[int, int, int], vector_potential, n_ticks: int = 4
+) -> DiscreteCausalSession:
+    """Build a fresh wavepacket session, evolve `n_ticks` under the field."""
+    lattice = BipartiteLattice(shape=shape)
+    session = _wavepacket(lattice)
+    sched = TickScheduler(
+        lattice=lattice, hop=HopOperator(lattice=lattice),
+        vector_potential=vector_potential,
+    )
+    sched.register(session)
+    for _ in range(n_ticks):
+        sched.step()
+    return session
+
+
+def test_scheduler_zero_field_matches_none(
+    small_shape: tuple[int, int, int],
+) -> None:
+    """A scheduler with vector_potential=zeros evolves bit-for-bit as None."""
+    s_none = _run_scheduler(small_shape, None)
+    s_zero = _run_scheduler(small_shape, np.zeros((3, *small_shape)))
+    np.testing.assert_array_equal(s_none.N_RGB, s_zero.N_RGB)
+    np.testing.assert_array_equal(s_none.N_CMY, s_zero.N_CMY)
+    np.testing.assert_array_equal(s_none.phi_RGB, s_zero.phi_RGB)
+    np.testing.assert_array_equal(s_none.phi_CMY, s_zero.phi_CMY)
+
+
+def test_scheduler_a1_exact_under_field(small_shape: tuple[int, int, int]) -> None:
+    """A=1 holds every tick when the scheduler threads a real B field."""
+    lattice = BipartiteLattice(shape=small_shape)
+    session = _wavepacket(lattice)
+    A = uniform_B_potential(small_shape, np.array([0.1, 0.0, 0.0]))
+    sched = TickScheduler(
+        lattice=lattice, hop=HopOperator(lattice=lattice), vector_potential=A
+    )
+    idx = sched.register(session)
+    n_units = session.n_units
+    for tick in range(6):
+        sched.step()
+        assert session.total_tokens() == n_units, f"A=1 broke at tick {tick}"
+    assert idx == 0
+
+
+# ---------------------------------------------------------------------------
+# #3 -- induced response -> 0 quadratically as |B| -> 0
+# ---------------------------------------------------------------------------
+
+def test_induced_response_vanishes_quadratically(
+    small_shape: tuple[int, int, int],
+) -> None:
+    """The (even-in-B) induced density response scales as |B|^2.
+
+    The induced response IS the second-order susceptibility: the
+    **even-in-B** part of the density change, isolated by symmetrising
+    over +-B (the odd/paramagnetic part needs a pre-existing current and
+    is not the "induced" piece). For a symmetric zero-momentum probe it
+    scales as |B|^2, so doubling B quadruples the response.
+
+    Measured at the analytical (pre-quantisation) level on a single hop so
+    the quadratic scaling is not masked by integer-token quantisation.
+    """
+    lattice = BipartiteLattice(shape=small_shape)
+    session = _wavepacket(lattice)  # real, zero-momentum, centred
+    hop = HopOperator(lattice=lattice)
+    parity = "even"
+
+    def response(scale: float) -> float:
+        # B along the optical axis (1, 1, -1).
+        B = scale * np.array([1.0, 1.0, -1.0])
+        A = uniform_B_potential(small_shape, B)
+        rp_R, rp_L = hop.step(session, parity, vector_potential=A)
+        rm_R, rm_L = hop.step(session, parity, vector_potential=-A)
+        r0_R, r0_L = hop.step(session, parity, vector_potential=None)
+        rho_plus = np.abs(rp_R) ** 2 + np.abs(rp_L) ** 2
+        rho_minus = np.abs(rm_R) ** 2 + np.abs(rm_L) ** 2
+        rho_0 = np.abs(r0_R) ** 2 + np.abs(r0_L) ** 2
+        even = 0.5 * (rho_plus + rho_minus) - rho_0  # even-in-B => O(|B|^2)
+        return float(np.linalg.norm(even))
+
+    r1 = response(0.01)
+    r2 = response(0.02)
+    r4 = response(0.04)
+
+    assert r1 > 0.0  # response is live
+    # Quadratic: response(2B) / response(B) -> 4.
+    np.testing.assert_allclose(r2 / r1, 4.0, rtol=0.05)
+    np.testing.assert_allclose(r4 / r2, 4.0, rtol=0.05)
+
+
+# ---------------------------------------------------------------------------
+# #4 (structural) -- magnetic induced response is uniaxial about (1,1,-1),
+# axial-large -- the Paper I Q-tensor {4,4,16} eigenstructure.
+# ---------------------------------------------------------------------------
+
+def test_induced_response_uniaxial_about_optical_axis() -> None:
+    """The magnetic susceptibility is uniaxial about (1,1,-1), axis-large.
+
+    Paper I's induced gauge action gives a `Q`-tensor with eigenvalues
+    `{4,4,16}`, the large (16) eigenvalue along the optical axis `(1,1,-1)`
+    (App. B). This test confirms the **eigenstructure** the Peierls coupling
+    must reproduce:
+
+    - **uniaxial:** the susceptibility is equal for directions perpendicular
+      to `(1,1,-1)` (the two `4`s are degenerate), and
+    - **axial-large:** `(1,1,-1)` carries the *larger* response (the `16` is
+      axial, i.e. prolate not oblate).
+
+    SCOPE / HONEST LIMIT: this pins the *structure* (axis + uniaxial +
+    prolate sign), which is what a wrong Peierls/midpoint convention would
+    break. It does **not** pin the exact `16/4 = 4` eigenvalue ratio -- that
+    needs the **vacuum-averaged** (token-ensemble) induced action and Paper
+    I's `induced_gauge_action.py` normalisation, deferred to the exp_03
+    cross-check (Phase 3). The backward-midpoint sign flag
+    (`acceptance-test-4-confirms-backward-midpoint-sign`) is therefore
+    *partially* discharged here (structure confirmed) and fully closed by
+    exp_03.
+    """
+    shape = (12, 12, 12)
+    lattice = BipartiteLattice(shape=shape)
+    c = shape[0] // 2
+    session = DiscreteCausalSession.wavepacket(
+        lattice, n_units=1_000_000, omega=0.3, center=(c, c, c), sigma=2.0
+    )
+    hop = HopOperator(lattice=lattice)
+
+    def chi(direction: tuple[float, float, float], scale: float = 0.02) -> float:
+        n = np.asarray(direction, dtype=np.float64)
+        n = n / np.linalg.norm(n)
+        A = uniform_B_potential(shape, scale * n)
+        rp = hop.step(session, "even", vector_potential=A)
+        rm = hop.step(session, "even", vector_potential=-A)
+        r0 = hop.step(session, "even", vector_potential=None)
+        rho = lambda r: np.abs(r[0]) ** 2 + np.abs(r[1]) ** 2
+        even = 0.5 * (rho(rp) + rho(rm)) - rho(r0)
+        return float(np.linalg.norm(even)) / scale**2  # /|B|^2
+
+    chi_axis = chi((1, 1, -1))
+    # Three independent directions perpendicular to (1, 1, -1) (a+b-c = 0).
+    chi_perp = [chi((1, -1, 0)), chi((1, 1, 2)), chi((0, 1, 1))]
+
+    # Uniaxial: all perpendicular directions are degenerate.
+    for cp in chi_perp[1:]:
+        np.testing.assert_allclose(cp, chi_perp[0], rtol=0.02)
+
+    # Axial-large: the optical axis carries a clearly larger response.
+    assert chi_axis > 1.2 * max(chi_perp), (
+        f"expected axial-large (prolate); chi_axis={chi_axis}, "
+        f"chi_perp={chi_perp}"
+    )

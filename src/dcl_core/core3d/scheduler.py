@@ -84,6 +84,18 @@ class TickScheduler:
     tick: int = 0
     residuals: dict[int, TokenResidual] = field(default_factory=dict)
     on_tick_complete: TickCallback | None = None
+    # Static background fields forwarded to every session's hop each tick
+    # (v0.3.0, Peierls coupling).  `external_potential` feeds the on-site
+    # (temporal / electric) phase; `vector_potential` (shape
+    # `(3, *lattice.shape)`) feeds the spatial Peierls link phase.  Both
+    # `None` -> the hop is gauge-free and this is the pre-v0.3.0 scheduler
+    # bit-for-bit.  These are the *static-background* case (exp_03); a
+    # session-sourced / dynamic field is the deferred interaction-engine
+    # work (see `docs/design/05_interaction_engine.md` D1d).
+    # physics: A_0 -- the on-site temporal/electric gauge phase.
+    external_potential: np.ndarray | None = None
+    # physics: A_i -- the spatial U(1) vector potential (Peierls link phase).
+    vector_potential: np.ndarray | None = None
 
     def parity_now(self) -> TickParity:
         """Return the active sublattice parity for the current tick."""
@@ -132,7 +144,13 @@ class TickScheduler:
         parity = self.parity_now()
         for idx, session in enumerate(self.sessions):
             # 1.  Hop -> analytical complex amplitudes (snapshot; no mutation).
-            psi_R_new, psi_L_new = self.hop.step(session, parity)
+            # Static background fields (None -> gauge-free, bit-for-bit).
+            psi_R_new, psi_L_new = self.hop.step(
+                session,
+                parity,
+                external_potential=self.external_potential,
+                vector_potential=self.vector_potential,
+            )
 
             # 2.  Renormalise `psi_new` to unit norm before the
             # integer quantisation.  The half-step hop formula in
