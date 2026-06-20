@@ -170,7 +170,7 @@ seam, so it is no longer preferred.)*
 
 **Phase 3 — The physics verdict (R4 readout, exp_03)** - `experiments/exp_03_*.py`: E+B susceptibility estimator (experiment-side per D2); orientation sweep vs `(1,1,-1)`. - Test #5 (birefringence-order verdict: `O(1)` dim-4 vs `(ka)^2`- suppressed vs null E/B cancellation), `N`-limited error bar. **Load-bearing physics test.**
 
-**Phase 4 — Scale path (R5, GPU) + performance — gated on hardware provisioning** - Peierls phase in the GPU RawKernel (`gpu.py`); `test_gpu_matches_cpu`. - Orientation sweep safe to fan out across processes/devices (determinism NFR: seed token dynamics reproducibly).
+**Phase 4 — Scale path (R5, GPU) + performance — NOT hardware-gated (user, 2026-06-19).** GPU hardware IS present (NVIDIA GTX 1060 6GB on this host); CuPy is simply not yet installed in the venv. So Phase 4 is **software work**, unblocked: install CuPy, then implement the GPU path + parallelism + perf. (The earlier "gated on hardware provisioning" framing was wrong — corrected.) - Peierls phase in the GPU RawKernel (`gpu.py`); `test_gpu_matches_cpu`. - Orientation sweep safe to fan out across processes/devices (determinism NFR: seed token dynamics reproducibly). - Caveat: GTX 1060 is a modest Pascal card (6 GB); it unblocks development and raises `N` over CPU, but is not a large-compute device. Install friction possible on the MSYS2/ucrt64 venv (see CuPy-on-Windows + the MSYS2 pip memory).
   - **PERF — cache static link phases (the hot-loop win).** `_hop_average`
     recomputes the per-link phase `exp(i·A_dot_v_mid)` every tick: a
     full-lattice dot + shift + `exp` + complex multiply, ×3 vectors, per

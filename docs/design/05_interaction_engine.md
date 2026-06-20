@@ -270,7 +270,8 @@ The interaction engine, stated honestly, **cannot**:
 - **resolve sub-token phase** — `TokenResidual` carry is real; the
   complex-carry hypothesis is parked (see memory + `remainder.py` TODO).
 - **pin the birefringence order at arbitrary precision on CPU** — N-limited
-  until the GPU Peierls path lands.
+  until the GPU Peierls path lands. (NOT hardware-gated: a GPU is present;
+  this is software-pending — the GPU RawKernel path + CuPy install, Phase 4.)
 
 ---
 
