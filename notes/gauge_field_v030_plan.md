@@ -73,10 +73,15 @@ tick. `None` provider ⇒ current behaviour bit-for-bit.
 - **D1c — self-field.** Does a session see the field it sources itself, or
   only the *other* sessions' field? (Coulomb force between distinct
   charges excludes self; an induced-vacuum-response reading might not.)
-- **D1d — v0.3.0 scope.** Ship the *seam* + the **static** provider
-  exp_03 needs; defer the **session-sourced** provider to the inter-
-  session-coupling release — but design the seam now so it drops in
-  without re-plumbing.
+- **D1d — v0.3.0 scope. RESOLVED 2026-06-19 (user): minimal threading.**
+  Add optional **static** `vector_potential` (+ forward the existing
+  `external_potential`) onto `TickScheduler`, passed straight to
+  `hop.step`. Do **NOT** build the `Field` / `AbstractSession` /
+  `FieldProvider` seam objects in v0.3.0 — exp_03 is single-session +
+  static external background and needs none of it. The static array IS
+  the zero-source degenerate case the future seam wraps, so this is not
+  rework. All interaction-engine architecture (the seam, taxonomy,
+  session-sourced fields) stays forward (≈ v1.0).
 
 **REFINEMENT 2026-06-18 (user) — invert the seam: polymorphic session,
 abstract scheduler.** A `FieldProvider` *on the scheduler* makes the

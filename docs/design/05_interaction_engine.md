@@ -178,6 +178,11 @@ is `docs/data_deposit_and_provenance.md`.
 - **New dumpable stream: the gauge field.** `Field.A0`/`A` are new arrays
   worth writing for `exp_03` and visualisation — a new manifest entry, not a
   change to existing files.
+- **Record the `A_mid` *direction*, not just the rule** (PM reverse-handoff,
+  2026-06-19). The gauge manifest entry must state the midpoint **direction**
+  — `"backward / gather-side"` (`½(A(x)+A(x−v))`), not merely `"half-sum"` —
+  so a sign bug is traceable from the artefact alone. This is the durable
+  trail for the `acceptance-test-4-confirms-backward-midpoint-sign` flag.
 - **Identity extension.** Many sessions/kinds + M fields ⇒ the manifest's
   `arrays[]` gains a per-array `source` tag (session index/kind, or field
   key) + a filename convention; bump `schema_version`. Per-array axis/dtype
@@ -198,6 +203,11 @@ is `docs/data_deposit_and_provenance.md`.
 - Physics is isolated and opt-in: no field ⇒ v0.1.0 bit-for-bit.
 - Jacobi update ordering is the recommendation (D1b).
 - `N_RGB`/`N_CMY` semantics frozen; new physics in new arrays.
+- **D1d (2026-06-19): v0.3.0 ships minimal threading** — a static
+  `vector_potential`/`external_potential` on `TickScheduler` → `hop.step`,
+  NO `Field`/seam objects. exp_03 is single-session + static background; the
+  whole interaction-engine architecture (§1–§2) stays forward (≈ v1.0). The
+  static array is the seam's zero-source degenerate case, so no rework.
 
 **Open:**
 - **Particle taxonomy** — concrete inheritance shape (not flat); whether
